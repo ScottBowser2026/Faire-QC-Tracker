@@ -1,0 +1,1185 @@
+{
+  "qc": {
+    "booths": {
+      "Argyle": {
+        "name": "Argyle",
+        "zoneManager": "",
+        "menuItems": {
+          "i0": {
+            "name": "Scotch Eggs",
+            "category": "hot-food",
+            "requiresTemp": true,
+            "requiresTime": true,
+            "minTemp": 135,
+            "components": {}
+          }
+        }
+      },
+      "Fry by Knight (peanut oil) (vegan)": {
+        "name": "Fry by Knight (peanut oil) (vegan)",
+        "zoneManager": "",
+        "menuItems": {
+          "i0": {
+            "name": "Fry Cup",
+            "category": "hot-food",
+            "requiresTemp": true,
+            "requiresTime": true,
+            "minTemp": 135,
+            "components": {}
+          },
+          "i1": {
+            "name": "Dipping Sauce",
+            "category": "hot-food",
+            "requiresTemp": true,
+            "requiresTime": true,
+            "minTemp": 135,
+            "components": {}
+          }
+        }
+      },
+      "Kettle Craic (vegetarian)": {
+        "name": "Kettle Craic (vegetarian)",
+        "zoneManager": "",
+        "menuItems": {
+          "i0": {
+            "name": "Kettle Corn Bags",
+            "category": "hot-food",
+            "requiresTemp": true,
+            "requiresTime": true,
+            "minTemp": 135,
+            "components": {}
+          },
+          "i1": {
+            "name": "Popcorn bags",
+            "category": "hot-food",
+            "requiresTemp": true,
+            "requiresTime": true,
+            "minTemp": 135,
+            "components": {}
+          },
+          "i2": {
+            "name": "Strawberry Lemon Shakeup (32 ounce)",
+            "category": "beverage",
+            "requiresTemp": false,
+            "requiresTime": true,
+            "minTemp": null,
+            "components": {}
+          },
+          "i3": {
+            "name": "Lemon  Shakeups (32 ounce)",
+            "category": "beverage",
+            "requiresTemp": false,
+            "requiresTime": true,
+            "minTemp": null,
+            "components": {}
+          },
+          "i4": {
+            "name": "Strawberry Lemon Shakeup Refill",
+            "category": "beverage",
+            "requiresTemp": false,
+            "requiresTime": true,
+            "minTemp": null,
+            "components": {}
+          },
+          "i5": {
+            "name": "Lemon Shake-ups (refills)",
+            "category": "beverage",
+            "requiresTemp": false,
+            "requiresTime": true,
+            "minTemp": null,
+            "components": {}
+          }
+        }
+      },
+      "Cosimo's (location Old Archers)": {
+        "name": "Cosimo's (location Old Archers)",
+        "zoneManager": "",
+        "menuItems": {
+          "i0": {
+            "name": "Meatball Sandwich",
+            "category": "hot-food",
+            "requiresTemp": true,
+            "requiresTime": true,
+            "minTemp": 135,
+            "components": {}
+          },
+          "i1": {
+            "name": "Suasage w/ Peppers and Onions Sandwich",
+            "category": "hot-food",
+            "requiresTemp": true,
+            "requiresTime": true,
+            "minTemp": 135,
+            "components": {}
+          },
+          "i2": {
+            "name": "Thin Sliced Roast Beef Sandwich",
+            "category": "hot-food",
+            "requiresTemp": true,
+            "requiresTime": true,
+            "minTemp": 135,
+            "components": {}
+          },
+          "i3": {
+            "name": "The Works Thin Sliced Roast Beef Sandwich",
+            "category": "hot-food",
+            "requiresTemp": true,
+            "requiresTime": true,
+            "minTemp": 135,
+            "components": {}
+          }
+        }
+      },
+      "Blackbeards Brine (vegan)": {
+        "name": "Blackbeards Brine (vegan)",
+        "zoneManager": "",
+        "menuItems": {
+          "i0": {
+            "name": "Pickle on a Stick- regular, garlic",
+            "category": "cold-food",
+            "requiresTemp": true,
+            "requiresTime": true,
+            "minTemp": 41,
+            "components": {}
+          }
+        }
+      },
+      "Wicked Pickle (vegan)": {
+        "name": "Wicked Pickle (vegan)",
+        "zoneManager": "",
+        "menuItems": {
+          "i0": {
+            "name": "Pickle on a Stick- regular, garlic",
+            "category": "cold-food",
+            "requiresTemp": true,
+            "requiresTime": true,
+            "minTemp": 41,
+            "components": {}
+          }
+        }
+      },
+      "Wooden Shoe Like Some Cheese": {
+        "name": "Wooden Shoe Like Some Cheese",
+        "zoneManager": "",
+        "menuItems": {
+          "i0": {
+            "name": "Savory Charcuterie Board",
+            "category": "cold-food",
+            "requiresTemp": true,
+            "requiresTime": true,
+            "minTemp": 41,
+            "components": {}
+          },
+          "i1": {
+            "name": "Baked Brie topped w/ Strawberry Basil",
+            "category": "cold-food",
+            "requiresTemp": true,
+            "requiresTime": true,
+            "minTemp": 41,
+            "components": {}
+          },
+          "i2": {
+            "name": "Cheese Muffin",
+            "category": "baked-good",
+            "requiresTemp": false,
+            "requiresTime": true,
+            "minTemp": null,
+            "components": {}
+          },
+          "i3": {
+            "name": "Assorted Retail Cheese",
+            "category": "cold-food",
+            "requiresTemp": true,
+            "requiresTime": true,
+            "minTemp": 41,
+            "components": {}
+          },
+          "i4": {
+            "name": "Port Wine Dip",
+            "category": "cold-food",
+            "requiresTemp": true,
+            "requiresTime": true,
+            "minTemp": 41,
+            "components": {}
+          }
+        }
+      },
+      "Public House": {
+        "name": "Public House",
+        "zoneManager": "",
+        "menuItems": {
+          "i0": {
+            "name": "Chicken Tenders (not served with Fries)",
+            "category": "hot-food",
+            "requiresTemp": true,
+            "requiresTime": true,
+            "minTemp": 135,
+            "components": {}
+          },
+          "i1": {
+            "name": "Fried Fish (not served with Fries)",
+            "category": "hot-food",
+            "requiresTemp": true,
+            "requiresTime": true,
+            "minTemp": 135,
+            "components": {}
+          },
+          "i2": {
+            "name": "Basket of Fries (1/2 pound)",
+            "category": "hot-food",
+            "requiresTemp": true,
+            "requiresTime": true,
+            "minTemp": 135,
+            "components": {}
+          }
+        }
+      },
+      "Queens Confectionary (vegetarian)": {
+        "name": "Queens Confectionary (vegetarian)",
+        "zoneManager": "",
+        "menuItems": {
+          "i0": {
+            "name": "Peanut Butter Cup Cookie",
+            "category": "baked-good",
+            "requiresTemp": false,
+            "requiresTime": true,
+            "minTemp": null,
+            "components": {}
+          },
+          "i1": {
+            "name": "Triple Chocolate Chip Cookie",
+            "category": "baked-good",
+            "requiresTemp": false,
+            "requiresTime": true,
+            "minTemp": null,
+            "components": {}
+          },
+          "i2": {
+            "name": "Brownie",
+            "category": "baked-good",
+            "requiresTemp": false,
+            "requiresTime": true,
+            "minTemp": null,
+            "components": {}
+          },
+          "i3": {
+            "name": "Cupcake",
+            "category": "baked-good",
+            "requiresTemp": false,
+            "requiresTime": true,
+            "minTemp": null,
+            "components": {}
+          },
+          "i4": {
+            "name": "Fudge 1 lb",
+            "category": "baked-good",
+            "requiresTemp": false,
+            "requiresTime": true,
+            "minTemp": null,
+            "components": {}
+          },
+          "i5": {
+            "name": "Fudge 1/2 lb",
+            "category": "baked-good",
+            "requiresTemp": false,
+            "requiresTime": true,
+            "minTemp": null,
+            "components": {}
+          }
+        }
+      },
+      "Prime Cut": {
+        "name": "Prime Cut",
+        "zoneManager": "",
+        "menuItems": {
+          "i0": {
+            "name": "Pit Beef Sandwich",
+            "category": "hot-food",
+            "requiresTemp": true,
+            "requiresTime": true,
+            "minTemp": 135,
+            "components": {}
+          },
+          "i1": {
+            "name": "Canned Soda",
+            "category": "beverage",
+            "requiresTemp": false,
+            "requiresTime": true,
+            "minTemp": null,
+            "components": {}
+          },
+          "i2": {
+            "name": "Water",
+            "category": "beverage",
+            "requiresTemp": false,
+            "requiresTime": true,
+            "minTemp": null,
+            "components": {}
+          }
+        }
+      },
+      "Tudor Fruit & Tea Co. (vegetarian)": {
+        "name": "Tudor Fruit & Tea Co. (vegetarian)",
+        "zoneManager": "",
+        "menuItems": {
+          "i0": {
+            "name": "Gourmet Iced Tea",
+            "category": "beverage",
+            "requiresTemp": false,
+            "requiresTime": true,
+            "minTemp": null,
+            "components": {}
+          },
+          "i1": {
+            "name": "Switchel",
+            "category": "beverage",
+            "requiresTemp": false,
+            "requiresTime": true,
+            "minTemp": null,
+            "components": {}
+          },
+          "i2": {
+            "name": "Infused Fruit Water (vegan)",
+            "category": "beverage",
+            "requiresTemp": false,
+            "requiresTime": true,
+            "minTemp": null,
+            "components": {}
+          },
+          "i3": {
+            "name": "Hot Tea",
+            "category": "beverage",
+            "requiresTemp": false,
+            "requiresTime": true,
+            "minTemp": null,
+            "components": {}
+          },
+          "i4": {
+            "name": "Scones 5oz (vegetarian)",
+            "category": "baked-good",
+            "requiresTemp": false,
+            "requiresTime": true,
+            "minTemp": null,
+            "components": {}
+          },
+          "i5": {
+            "name": "Crudite, Carrots & Dip (vegetarian)",
+            "category": "cold-food",
+            "requiresTemp": true,
+            "requiresTime": true,
+            "minTemp": 41,
+            "components": {}
+          },
+          "i6": {
+            "name": "Crudite Carrots, Tomatoes, Cukes & Dip (vegetarian)",
+            "category": "cold-food",
+            "requiresTemp": true,
+            "requiresTime": true,
+            "minTemp": 41,
+            "components": {}
+          },
+          "i7": {
+            "name": "Fruit Salad (watermelon, lopes & grapes) (vegan)",
+            "category": "beverage",
+            "requiresTemp": false,
+            "requiresTime": true,
+            "minTemp": null,
+            "components": {}
+          },
+          "i8": {
+            "name": "Banana Nachos / Apple Nachos (seasonal)",
+            "category": "hot-food",
+            "requiresTemp": true,
+            "requiresTime": true,
+            "minTemp": 135,
+            "components": {}
+          },
+          "i9": {
+            "name": "Hot Cider",
+            "category": "beverage",
+            "requiresTemp": false,
+            "requiresTime": true,
+            "minTemp": null,
+            "components": {}
+          },
+          "i10": {
+            "name": "Hot chocolate",
+            "category": "beverage",
+            "requiresTemp": false,
+            "requiresTime": true,
+            "minTemp": null,
+            "components": {}
+          },
+          "i11": {
+            "name": "Hot mug add on",
+            "category": "beverage",
+            "requiresTemp": false,
+            "requiresTime": true,
+            "minTemp": null,
+            "components": {}
+          },
+          "i12": {
+            "name": "Water",
+            "category": "beverage",
+            "requiresTemp": false,
+            "requiresTime": true,
+            "minTemp": null,
+            "components": {}
+          }
+        }
+      },
+      "Bread and Broth": {
+        "name": "Bread and Broth",
+        "zoneManager": "",
+        "menuItems": {
+          "i0": {
+            "name": "Ham and Cheese Sandwich - sliced ham & gouda cheese",
+            "category": "hot-food",
+            "requiresTemp": true,
+            "requiresTime": true,
+            "minTemp": 135,
+            "components": {}
+          },
+          "i1": {
+            "name": "Chicken Caeser Salad Wrap / chips",
+            "category": "hot-food",
+            "requiresTemp": true,
+            "requiresTime": true,
+            "minTemp": 135,
+            "components": {}
+          },
+          "i2": {
+            "name": "Soup Cup",
+            "category": "hot-food",
+            "requiresTemp": true,
+            "requiresTime": true,
+            "minTemp": 135,
+            "components": {}
+          },
+          "i3": {
+            "name": "Bread Boule",
+            "category": "baked-good",
+            "requiresTemp": false,
+            "requiresTime": true,
+            "minTemp": null,
+            "components": {}
+          }
+        }
+      },
+      "Get Baked": {
+        "name": "Get Baked",
+        "zoneManager": "",
+        "menuItems": {
+          "i0": {
+            "name": "Baked Potato w/ Butter (vegetarian)",
+            "category": "hot-food",
+            "requiresTemp": true,
+            "requiresTime": true,
+            "minTemp": 135,
+            "components": {}
+          },
+          "i1": {
+            "name": "Baked Potato w/ Cheese (vegetarian)",
+            "category": "hot-food",
+            "requiresTemp": true,
+            "requiresTime": true,
+            "minTemp": 135,
+            "components": {}
+          },
+          "i2": {
+            "name": "Baked Potato w/ Cheese and Bacon",
+            "category": "hot-food",
+            "requiresTemp": true,
+            "requiresTime": true,
+            "minTemp": 135,
+            "components": {}
+          },
+          "i3": {
+            "name": "Baked Potato w/ Chili and Cheese",
+            "category": "hot-food",
+            "requiresTemp": true,
+            "requiresTime": true,
+            "minTemp": 135,
+            "components": {}
+          },
+          "i4": {
+            "name": "add sour cream",
+            "category": "other",
+            "requiresTemp": false,
+            "requiresTime": true,
+            "minTemp": null,
+            "components": {}
+          },
+          "i5": {
+            "name": "Soda",
+            "category": "beverage",
+            "requiresTemp": false,
+            "requiresTime": true,
+            "minTemp": null,
+            "components": {}
+          },
+          "i6": {
+            "name": "Water",
+            "category": "beverage",
+            "requiresTemp": false,
+            "requiresTime": true,
+            "minTemp": null,
+            "components": {}
+          }
+        }
+      },
+      "Macbeth": {
+        "name": "Macbeth",
+        "zoneManager": "",
+        "menuItems": {
+          "i0": {
+            "name": "Classic Mac and Cheese (vegetarian)",
+            "category": "hot-food",
+            "requiresTemp": true,
+            "requiresTime": true,
+            "minTemp": 135,
+            "components": {}
+          },
+          "i1": {
+            "name": "Special Mac and Cheese",
+            "category": "hot-food",
+            "requiresTemp": true,
+            "requiresTime": true,
+            "minTemp": 135,
+            "components": {}
+          },
+          "i2": {
+            "name": "Gatorade",
+            "category": "beverage",
+            "requiresTemp": false,
+            "requiresTime": true,
+            "minTemp": null,
+            "components": {}
+          },
+          "i3": {
+            "name": "Soda",
+            "category": "beverage",
+            "requiresTemp": false,
+            "requiresTime": true,
+            "minTemp": null,
+            "components": {}
+          },
+          "i4": {
+            "name": "Water",
+            "category": "beverage",
+            "requiresTemp": false,
+            "requiresTime": true,
+            "minTemp": null,
+            "components": {}
+          }
+        }
+      },
+      "Madame Cluckie's": {
+        "name": "Madame Cluckie's",
+        "zoneManager": "",
+        "menuItems": {
+          "i0": {
+            "name": "Smoked Chicken Sandwich",
+            "category": "hot-food",
+            "requiresTemp": true,
+            "requiresTime": true,
+            "minTemp": 135,
+            "components": {}
+          },
+          "i1": {
+            "name": "Soda",
+            "category": "beverage",
+            "requiresTemp": false,
+            "requiresTime": true,
+            "minTemp": null,
+            "components": {}
+          },
+          "i2": {
+            "name": "Water",
+            "category": "beverage",
+            "requiresTemp": false,
+            "requiresTime": true,
+            "minTemp": null,
+            "components": {}
+          }
+        }
+      },
+      "New World Inne": {
+        "name": "New World Inne",
+        "zoneManager": "",
+        "menuItems": {
+          "i0": {
+            "name": "Smash Burger",
+            "category": "hot-food",
+            "requiresTemp": true,
+            "requiresTime": true,
+            "minTemp": 135,
+            "components": {}
+          },
+          "i1": {
+            "name": "add Patty",
+            "category": "other",
+            "requiresTemp": false,
+            "requiresTime": true,
+            "minTemp": null,
+            "components": {}
+          },
+          "i2": {
+            "name": "Veggie Burger (vegetarian)",
+            "category": "hot-food",
+            "requiresTemp": true,
+            "requiresTime": true,
+            "minTemp": 135,
+            "components": {}
+          },
+          "i3": {
+            "name": "Basket of Fries ( 1/2 pound )",
+            "category": "hot-food",
+            "requiresTemp": true,
+            "requiresTime": true,
+            "minTemp": 135,
+            "components": {}
+          },
+          "i4": {
+            "name": "Knots About You",
+            "category": "hot-food",
+            "requiresTemp": true,
+            "requiresTime": true,
+            "minTemp": 135,
+            "components": {}
+          },
+          "i5": {
+            "name": "Jumbo Pretzel (vegetarian)",
+            "category": "baked-good",
+            "requiresTemp": false,
+            "requiresTime": true,
+            "minTemp": null,
+            "components": {}
+          },
+          "i6": {
+            "name": "Jumbo Pretzel with Cheese Dip",
+            "category": "baked-good",
+            "requiresTemp": false,
+            "requiresTime": true,
+            "minTemp": null,
+            "components": {}
+          }
+        }
+      },
+      "Just Legges": {
+        "name": "Just Legges",
+        "zoneManager": "",
+        "menuItems": {
+          "i0": {
+            "name": "Turkey Leg",
+            "category": "hot-food",
+            "requiresTemp": true,
+            "requiresTime": true,
+            "minTemp": 135,
+            "components": {}
+          }
+        }
+      },
+      "German": {
+        "name": "German",
+        "zoneManager": "",
+        "menuItems": {
+          "i0": {
+            "name": "Smoked Bacon Cheddar Bratwurst Sandwich",
+            "category": "hot-food",
+            "requiresTemp": true,
+            "requiresTime": true,
+            "minTemp": 135,
+            "components": {}
+          },
+          "i1": {
+            "name": "Smoked Bratwurst Sandwich",
+            "category": "hot-food",
+            "requiresTemp": true,
+            "requiresTime": true,
+            "minTemp": 135,
+            "components": {}
+          },
+          "i2": {
+            "name": "add sauerkraut",
+            "category": "other",
+            "requiresTemp": false,
+            "requiresTime": true,
+            "minTemp": null,
+            "components": {}
+          }
+        }
+      },
+      "Dark Knight (vegetarian)": {
+        "name": "Dark Knight (vegetarian)",
+        "zoneManager": "",
+        "menuItems": {
+          "i0": {
+            "name": "Coffee Drinks",
+            "category": "beverage",
+            "requiresTemp": false,
+            "requiresTime": true,
+            "minTemp": null,
+            "components": {}
+          }
+        }
+      },
+      "Dark Knight Rises (vegetarian)": {
+        "name": "Dark Knight Rises (vegetarian)",
+        "zoneManager": "",
+        "menuItems": {
+          "i0": {
+            "name": "Bamboo Mug",
+            "category": "beverage",
+            "requiresTemp": false,
+            "requiresTime": true,
+            "minTemp": null,
+            "components": {}
+          },
+          "i1": {
+            "name": "Nitro Cider",
+            "category": "beverage",
+            "requiresTemp": false,
+            "requiresTime": true,
+            "minTemp": null,
+            "components": {}
+          },
+          "i2": {
+            "name": "Nitro Coffee",
+            "category": "beverage",
+            "requiresTemp": false,
+            "requiresTime": true,
+            "minTemp": null,
+            "components": {}
+          },
+          "i3": {
+            "name": "Coffee",
+            "category": "beverage",
+            "requiresTemp": false,
+            "requiresTime": true,
+            "minTemp": null,
+            "components": {}
+          },
+          "i4": {
+            "name": "Latte",
+            "category": "beverage",
+            "requiresTemp": false,
+            "requiresTime": true,
+            "minTemp": null,
+            "components": {}
+          },
+          "i5": {
+            "name": "Cappucino",
+            "category": "hot-food",
+            "requiresTemp": true,
+            "requiresTime": true,
+            "minTemp": 135,
+            "components": {}
+          },
+          "i6": {
+            "name": "add a flavor (2 pumps = .5oz)",
+            "category": "other",
+            "requiresTemp": false,
+            "requiresTime": true,
+            "minTemp": null,
+            "components": {}
+          },
+          "i7": {
+            "name": "Jumbo Banana / Cappuccino Muffin",
+            "category": "baked-good",
+            "requiresTemp": false,
+            "requiresTime": true,
+            "minTemp": null,
+            "components": {}
+          }
+        }
+      },
+      "Pretzel Cart (vegetarian)": {
+        "name": "Pretzel Cart (vegetarian)",
+        "zoneManager": "",
+        "menuItems": {
+          "i0": {
+            "name": "Pretzel Twist",
+            "category": "baked-good",
+            "requiresTemp": false,
+            "requiresTime": true,
+            "minTemp": null,
+            "components": {}
+          },
+          "i1": {
+            "name": "water",
+            "category": "beverage",
+            "requiresTemp": false,
+            "requiresTime": true,
+            "minTemp": null,
+            "components": {}
+          }
+        }
+      },
+      "Braten": {
+        "name": "Braten",
+        "zoneManager": "",
+        "menuItems": {
+          "i0": {
+            "name": "Turkey Leg",
+            "category": "hot-food",
+            "requiresTemp": true,
+            "requiresTime": true,
+            "minTemp": 135,
+            "components": {}
+          },
+          "i1": {
+            "name": "water",
+            "category": "beverage",
+            "requiresTemp": false,
+            "requiresTime": true,
+            "minTemp": null,
+            "components": {}
+          }
+        }
+      },
+      "Prancing Schwein": {
+        "name": "Prancing Schwein",
+        "zoneManager": "",
+        "menuItems": {
+          "i0": {
+            "name": "Pulled Pork w/ Sweet BBQ Sauce Sandwich",
+            "category": "hot-food",
+            "requiresTemp": true,
+            "requiresTime": true,
+            "minTemp": 135,
+            "components": {}
+          },
+          "i1": {
+            "name": "Spicy Sauced Pork Bellie",
+            "category": "hot-food",
+            "requiresTemp": true,
+            "requiresTime": true,
+            "minTemp": 135,
+            "components": {}
+          }
+        }
+      },
+      "Scappis": {
+        "name": "Scappis",
+        "zoneManager": "",
+        "menuItems": {}
+      },
+      "Cantina": {
+        "name": "Cantina",
+        "zoneManager": "",
+        "menuItems": {}
+      },
+      "Anchor and Mermaid": {
+        "name": "Anchor and Mermaid",
+        "zoneManager": "",
+        "menuItems": {
+          "i0": {
+            "name": "Pot Roast with Beef Gravy and Garlic Mashed Potatoes",
+            "category": "hot-food",
+            "requiresTemp": true,
+            "requiresTime": true,
+            "minTemp": 135,
+            "components": {}
+          },
+          "i1": {
+            "name": "Half Rottiserie Chicken with Chicken Gravy and Garlic Mashed Potatoes",
+            "category": "hot-food",
+            "requiresTemp": true,
+            "requiresTime": true,
+            "minTemp": 135,
+            "components": {}
+          },
+          "i2": {
+            "name": "Mac and Cheese with Asparagus Tips and Sauteed Mushrooms",
+            "category": "hot-food",
+            "requiresTemp": true,
+            "requiresTime": true,
+            "minTemp": 135,
+            "components": {}
+          },
+          "i3": {
+            "name": "Children's Menu",
+            "category": "hot-food",
+            "requiresTemp": true,
+            "requiresTime": true,
+            "minTemp": 135,
+            "components": {}
+          },
+          "i4": {
+            "name": "Chicken Fingers and Fries",
+            "category": "hot-food",
+            "requiresTemp": true,
+            "requiresTime": true,
+            "minTemp": 135,
+            "components": {}
+          },
+          "i5": {
+            "name": "Children Mac and Cheese (no fries)",
+            "category": "hot-food",
+            "requiresTemp": true,
+            "requiresTime": true,
+            "minTemp": 135,
+            "components": {}
+          }
+        }
+      },
+      "House of Cinn.": {
+        "name": "House of Cinn.",
+        "zoneManager": "",
+        "menuItems": {
+          "i0": {
+            "name": "Cinnamon Bread",
+            "category": "baked-good",
+            "requiresTemp": false,
+            "requiresTime": true,
+            "minTemp": null,
+            "components": {}
+          },
+          "i1": {
+            "name": "Roasted Nuts (3oz Portion)",
+            "category": "hot-food",
+            "requiresTemp": true,
+            "requiresTime": true,
+            "minTemp": 135,
+            "components": {}
+          },
+          "i2": {
+            "name": "Cinnfully Whipped Seasonal Soft Serve",
+            "category": "hot-food",
+            "requiresTemp": true,
+            "requiresTime": true,
+            "minTemp": 135,
+            "components": {}
+          },
+          "i3": {
+            "name": "Water",
+            "category": "beverage",
+            "requiresTemp": false,
+            "requiresTime": true,
+            "minTemp": null,
+            "components": {}
+          },
+          "i4": {
+            "name": "Cinnamon Hot Chocolate",
+            "category": "baked-good",
+            "requiresTemp": false,
+            "requiresTime": true,
+            "minTemp": null,
+            "components": {}
+          },
+          "i5": {
+            "name": "Apple Fritters",
+            "category": "baked-good",
+            "requiresTemp": false,
+            "requiresTime": true,
+            "minTemp": null,
+            "components": {}
+          }
+        }
+      },
+      "Berried in Chocolate": {
+        "name": "Berried in Chocolate",
+        "zoneManager": "",
+        "menuItems": {
+          "i0": {
+            "name": "Strawberry Cheesecake Cup",
+            "category": "baked-good",
+            "requiresTemp": false,
+            "requiresTime": true,
+            "minTemp": null,
+            "components": {}
+          },
+          "i1": {
+            "name": "Dubai Strawberries Choc, Pistachio, Phyllo",
+            "category": "baked-good",
+            "requiresTemp": false,
+            "requiresTime": true,
+            "minTemp": null,
+            "components": {}
+          },
+          "i2": {
+            "name": "Hot Chocolate",
+            "category": "beverage",
+            "requiresTemp": false,
+            "requiresTime": true,
+            "minTemp": null,
+            "components": {}
+          },
+          "i3": {
+            "name": "Hot Apple Cider (when weather breaks)",
+            "category": "beverage",
+            "requiresTemp": false,
+            "requiresTime": true,
+            "minTemp": null,
+            "components": {}
+          },
+          "i4": {
+            "name": "Add Cocoa Mug (when weather breaks)",
+            "category": "other",
+            "requiresTemp": false,
+            "requiresTime": true,
+            "minTemp": null,
+            "components": {}
+          },
+          "i5": {
+            "name": "Chocolate and Strawberries",
+            "category": "beverage",
+            "requiresTemp": false,
+            "requiresTime": true,
+            "minTemp": null,
+            "components": {}
+          },
+          "i6": {
+            "name": "Water",
+            "category": "beverage",
+            "requiresTemp": false,
+            "requiresTime": true,
+            "minTemp": null,
+            "components": {}
+          }
+        }
+      },
+      "Smores Station": {
+        "name": "Smores Station",
+        "zoneManager": "",
+        "menuItems": {
+          "i0": {
+            "name": "Campfire Cravings",
+            "category": "hot-food",
+            "requiresTemp": true,
+            "requiresTime": true,
+            "minTemp": 135,
+            "components": {}
+          },
+          "i1": {
+            "name": "Smores Kit",
+            "category": "hot-food",
+            "requiresTemp": true,
+            "requiresTime": true,
+            "minTemp": 135,
+            "components": {}
+          },
+          "i2": {
+            "name": "Hot Chocolate",
+            "category": "beverage",
+            "requiresTemp": false,
+            "requiresTime": true,
+            "minTemp": null,
+            "components": {}
+          },
+          "i3": {
+            "name": "Tumbler add on",
+            "category": "beverage",
+            "requiresTemp": false,
+            "requiresTime": true,
+            "minTemp": null,
+            "components": {}
+          }
+        }
+      },
+      "Tiger Pies": {
+        "name": "Tiger Pies",
+        "zoneManager": "",
+        "menuItems": {
+          "i0": {
+            "name": "Beef Tiger Pie",
+            "category": "hot-food",
+            "requiresTemp": true,
+            "requiresTime": true,
+            "minTemp": 135,
+            "components": {}
+          },
+          "i1": {
+            "name": "Mushroom Tiger Pie",
+            "category": "hot-food",
+            "requiresTemp": true,
+            "requiresTime": true,
+            "minTemp": 135,
+            "components": {}
+          },
+          "i2": {
+            "name": "Beef & Mushroom Tiger Pie",
+            "category": "hot-food",
+            "requiresTemp": true,
+            "requiresTime": true,
+            "minTemp": 135,
+            "components": {}
+          },
+          "i3": {
+            "name": "Soda",
+            "category": "beverage",
+            "requiresTemp": false,
+            "requiresTime": true,
+            "minTemp": null,
+            "components": {}
+          },
+          "i4": {
+            "name": "Water",
+            "category": "beverage",
+            "requiresTemp": false,
+            "requiresTime": true,
+            "minTemp": null,
+            "components": {}
+          }
+        }
+      },
+      "Wharf 1&2": {
+        "name": "Wharf 1&2",
+        "zoneManager": "",
+        "menuItems": {}
+      },
+      "O'Malley's": {
+        "name": "O'Malley's",
+        "zoneManager": "",
+        "menuItems": {}
+      },
+      "Cockney's": {
+        "name": "Cockney's",
+        "zoneManager": "",
+        "menuItems": {}
+      },
+      "Hart": {
+        "name": "Hart",
+        "zoneManager": "",
+        "menuItems": {}
+      },
+      "Just Whiskey": {
+        "name": "Just Whiskey",
+        "zoneManager": "",
+        "menuItems": {}
+      },
+      "Cider House": {
+        "name": "Cider House",
+        "zoneManager": "",
+        "menuItems": {}
+      },
+      "Bierhalle": {
+        "name": "Bierhalle",
+        "zoneManager": "",
+        "menuItems": {}
+      },
+      "German Bar": {
+        "name": "German Bar",
+        "zoneManager": "",
+        "menuItems": {}
+      },
+      "Ball and Chain": {
+        "name": "Ball and Chain",
+        "zoneManager": "",
+        "menuItems": {}
+      },
+      "Absinthe Bar": {
+        "name": "Absinthe Bar",
+        "zoneManager": "",
+        "menuItems": {}
+      },
+      "Pirate Ship": {
+        "name": "Pirate Ship",
+        "zoneManager": "",
+        "menuItems": {}
+      }
+    },
+    "zoneManagers": {},
+    "checks": {}
+  }
+}
