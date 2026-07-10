@@ -5,6 +5,14 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
 <title>PARF Quality Control Tracker</title>
 
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#1F2A24">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="PARF QC">
+
 <!--
   =====================================================================
   SETUP NOTES (read before deploying)
@@ -1439,6 +1447,13 @@ function escapeHtml(str) {
   return String(str).replace(/[&<>"']/g, m => ({
     "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
   }[m]));
+}
+
+/* ---------------- PWA service worker registration ---------------- */
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("sw.js").catch(err => console.warn("SW registration failed", err));
+  });
 }
 </script>
 </body>
