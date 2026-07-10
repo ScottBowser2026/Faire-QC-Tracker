@@ -1332,7 +1332,8 @@ function sendEmailNotification(record, checkId) {
     temp_reading: record.temp !== null ? record.temp + "°F" : "N/A (no temp required)",
     status: record.status.toUpperCase(),
     notes: record.notes || "—",
-    photo_url: viewLink || (record.photoUrl ? "Photo attached — view in the Check Log tab of the QC app" : "No photo attached")
+    photo_url: viewLink || (record.photoUrl ? "Photo attached — view in the Check Log tab of the QC app" : "No photo attached"),
+    photo: record.photoUrl || ""
   };
   emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, templateParams)
     .then(() => console.log("QC email sent"))
