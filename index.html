@@ -468,6 +468,15 @@
   </div>
 </div>
 
+<div class="modal-overlay" id="checkViewerOverlay" style="z-index:400; background:var(--ink);">
+  <div class="modal-box" style="max-width:480px;">
+    <div id="checkViewerContent" style="text-align:center;">Loading check…</div>
+    <div class="modal-actions" style="justify-content:center; margin-top:18px;">
+      <button class="btn btn-secondary btn-sm" onclick="window.location.href = window.location.pathname;">Go to Full App</button>
+    </div>
+  </div>
+</div>
+
 <header>
   <h1><span class="crest">Q</span> PARF Quality Control</h1>
   <div style="display:flex; align-items:center; gap:8px;">
@@ -795,6 +804,43 @@ document.getElementById("loginSubmitBtn").addEventListener("click", attemptLogin
 document.getElementById("loginPinInput").addEventListener("keydown", (e) => {
   if (e.key === "Enter") attemptLogin();
 });
+
+/* ===================================================================
+   DIRECT CHECK VIEWER — for email/Teams links (?check=ID), no login needed
+   =================================================================== */
+const urlParams = new URLSearchParams(window.location.search);
+const viewCheckId = urlParams.get("check");
+
+if (viewCheckId && db) {
+  document.getElementById("loginGate").classList.remove("show");
+  const overlay = document.getElementById("checkViewerOverlay");
+  overlay.classList.add("show");
+  db.ref("qc/checks/" + viewCheckId).once("value").then(snap => {
+    const r = snap.val();
+    const content = document.getElementById("checkViewerContent");
+    if (!r) {
+      content.innerHTML = `<h3>Check not found</h3><p class="temp-hint">This check may have been removed.</p>`;
+      return;
+    }
+    content.innerHTML = `
+      <h3 style="margin-top:0;">${escapeHtml(r.itemName || "")}</h3>
+      <div class="temp-hint" style="margin-bottom:14px;">${escapeHtml(r.boothName || "")}</div>
+      ${r.photoUrl ? `<img src="${r.photoUrl}" style="max-width:100%; border-radius:8px; border:1px solid var(--line); margin-bottom:14px;">` : `<div class="empty">No photo on this check</div>`}
+      <table class="log" style="text-align:left;">
+        <tbody>
+          <tr><td><b>Checked By</b></td><td>${escapeHtml(r.checkedBy || "")}</td></tr>
+          <tr><td><b>Zone Manager</b></td><td>${escapeHtml(r.zoneManager || "")}</td></tr>
+          <tr><td><b>Check Time</b></td><td class="mono">${escapeHtml(r.checkTime || "")}</td></tr>
+          <tr><td><b>Temp</b></td><td class="mono">${r.temp !== null && r.temp !== undefined ? r.temp + "°F" : "—"}</td></tr>
+          <tr><td><b>Status</b></td><td><span class="badge ${r.status}">${r.status === "na" ? "LOGGED" : (r.status||"").toUpperCase()}</span></td></tr>
+          <tr><td><b>Notes</b></td><td>${escapeHtml(r.notes || "—")}</td></tr>
+        </tbody>
+      </table>`;
+  }).catch(err => {
+    console.error(err);
+    document.getElementById("checkViewerContent").innerHTML = `<h3>Error loading check</h3>`;
+  });
+}
 
 /* ---------------- Connection status ---------------- */
 if (db) {
@@ -1249,9 +1295,11 @@ document.getElementById("qcSubmitBtn").addEventListener("click", () => {
     submittedAt: Date.now()
   };
 
-  checksRef.push().set(record).then(() => {
+  const newCheckRef = checksRef.push();
+  const checkId = newCheckRef.key;
+  newCheckRef.set(record).then(() => {
     toast("Check saved", "ok");
-    sendEmailNotification(record);
+    sendEmailNotification(record, checkId);
     document.getElementById("qcTemp").value = "";
     document.getElementById("qcNotes").value = "";
     document.getElementById("qcPhoto").value = "";
@@ -1267,11 +1315,14 @@ document.getElementById("qcSubmitBtn").addEventListener("click", () => {
   });
 });
 
-function sendEmailNotification(record) {
+function sendEmailNotification(record, checkId) {
   if (!window.emailjs || EMAILJS_SERVICE_ID.startsWith("YOUR-")) {
     console.warn("EmailJS not configured — skipping email send.");
     return;
   }
+  const viewLink = checkId
+    ? `${window.location.origin}${window.location.pathname}?check=${checkId}`
+    : null;
   const templateParams = {
     booth_name: record.boothName,
     zone_manager: record.zoneManager,
@@ -1281,7 +1332,7 @@ function sendEmailNotification(record) {
     temp_reading: record.temp !== null ? record.temp + "°F" : "N/A (no temp required)",
     status: record.status.toUpperCase(),
     notes: record.notes || "—",
-    photo_url: record.photoUrl ? "Photo attached — view in the Check Log tab of the QC app" : "No photo attached"
+    photo_url: viewLink || (record.photoUrl ? "Photo attached — view in the Check Log tab of the QC app" : "No photo attached")
   };
   emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, templateParams)
     .then(() => console.log("QC email sent"))
