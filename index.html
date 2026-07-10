@@ -469,8 +469,8 @@
 
 <nav class="tabs">
   <button data-tab="checkView" class="active">New Check</button>
-  <button data-tab="boothsView">Booths &amp; Menus</button>
-  <button data-tab="zoneManagersView">Zone Managers</button>
+  <button data-tab="boothsView" style="display:none;">Booths &amp; Menus</button>
+  <button data-tab="zoneManagersView" style="display:none;">Zone Managers</button>
   <button data-tab="historyView">Check Log</button>
 </nav>
 
@@ -576,14 +576,18 @@
     <div class="section-head"><h2>Zone Manager Assignments</h2></div>
     <div class="zm-box">
       <span class="label">Add New Zone Manager</span>
-      <input type="text" id="newZmName" placeholder="e.g. Jane Smith" style="max-width:180px;">
-      <input type="password" inputmode="numeric" id="newZmPin" placeholder="4-digit PIN" maxlength="8" style="max-width:120px;">
+      <input type="text" id="newZmName" placeholder="e.g. Jane Smith" style="max-width:170px;">
+      <input type="password" inputmode="numeric" id="newZmPin" placeholder="4-digit PIN" maxlength="8" style="max-width:110px;">
+      <select id="newZmRole" style="padding:7px 10px; border:1px solid var(--line); border-radius:6px;">
+        <option value="manager">Zone Manager</option>
+        <option value="admin">Admin</option>
+      </select>
       <button class="btn btn-secondary btn-sm" onclick="addNewZoneManager()">Add</button>
     </div>
 
-    <div class="section-head" style="margin-top:22px;"><h3 style="margin:0; font-size:1.05rem;">Manager PINs</h3></div>
+    <div class="section-head" style="margin-top:22px;"><h3 style="margin:0; font-size:1.05rem;">Manager PINs &amp; Roles</h3></div>
     <table class="log" id="managerPinTable" style="margin-bottom:24px;">
-      <thead><tr><th>Name</th><th>PIN</th><th></th></tr></thead>
+      <thead><tr><th>Name</th><th>PIN</th><th>Role</th><th></th></tr></thead>
       <tbody id="managerPinBody"></tbody>
     </table>
 
@@ -730,17 +734,28 @@ function attemptLogin() {
   }
 
   const [key, entry] = match;
-  loggedInManager = { key, name: entry.name, pin: entry.pin };
+  loggedInManager = { key, name: entry.name, pin: entry.pin, role: entry.role || "manager" };
   document.getElementById("loginGate").classList.remove("show");
   const badge = document.getElementById("loggedInAs");
   badge.style.display = "inline-block";
   badge.className = "status-pill live";
-  badge.innerHTML = `${escapeHtml(loggedInManager.name)} <span style="cursor:pointer; opacity:.7;" onclick="logoutManager()">(switch)</span>`;
+  const roleTag = loggedInManager.role === "admin" ? " (Admin)" : "";
+  badge.innerHTML = `${escapeHtml(loggedInManager.name)}${roleTag} <span style="cursor:pointer; opacity:.7;" onclick="logoutManager()">(switch)</span>`;
 
   const cb = document.getElementById("qcCheckedBy");
   cb.value = loggedInManager.name;
   cb.readOnly = true;
   cb.style.background = "var(--parchment-dim)";
+
+  const boothsTab = document.querySelector('nav.tabs button[data-tab="boothsView"]');
+  const zmTab = document.querySelector('nav.tabs button[data-tab="zoneManagersView"]');
+  if (loggedInManager.role === "admin") {
+    boothsTab.style.display = "";
+    zmTab.style.display = "";
+  } else {
+    boothsTab.style.display = "none";
+    zmTab.style.display = "none";
+  }
 
   populateBoothSelect();
   toast(`Welcome, ${loggedInManager.name}`, "ok");
@@ -756,6 +771,13 @@ function logoutManager() {
   cb.value = "";
   cb.readOnly = false;
   cb.style.background = "";
+
+  document.querySelector('nav.tabs button[data-tab="boothsView"]').style.display = "none";
+  document.querySelector('nav.tabs button[data-tab="zoneManagersView"]').style.display = "none";
+  document.querySelectorAll("nav.tabs button").forEach(b => b.classList.remove("active"));
+  document.querySelectorAll(".view").forEach(v => v.classList.remove("active"));
+  document.querySelector('nav.tabs button[data-tab="checkView"]').classList.add("active");
+  document.getElementById("checkView").classList.add("active");
 }
 
 document.getElementById("loginSubmitBtn").addEventListener("click", attemptLogin);
@@ -855,11 +877,11 @@ function populateBoothSelect() {
   const current = sel.value;
   let ids = Object.keys(boothsData);
 
-  if (loggedInManager) {
+  if (loggedInManager && loggedInManager.role !== "admin") {
     ids = ids.filter(id => boothsData[id].zoneManager === loggedInManager.name);
   }
 
-  if (loggedInManager && !ids.length) {
+  if (loggedInManager && loggedInManager.role !== "admin" && !ids.length) {
     sel.innerHTML = `<option value="">No booths assigned to you yet</option>`;
     sel.disabled = true;
     return;
@@ -1157,7 +1179,7 @@ document.getElementById("qcSubmitBtn").addEventListener("click", () => {
   const booth = boothsData[boothId];
   const item = booth.menuItems[itemId];
 
-  if (booth.zoneManager !== loggedInManager.name) {
+  if (loggedInManager.role !== "admin" && booth.zoneManager !== loggedInManager.name) {
     toast("That booth isn't assigned to you", "err");
     return;
   }
@@ -1320,20 +1342,24 @@ function upsertZoneManagerName(name) {
   const key = safeZmKey(name);
   const existing = zoneManagersData[key];
   const pin = (existing && typeof existing === "object") ? existing.pin : "";
-  zmRef.child(key).set({ name, pin: pin || "" });
+  const role = (existing && typeof existing === "object" && existing.role) ? existing.role : "manager";
+  zmRef.child(key).set({ name, pin: pin || "", role });
 }
 
 function addNewZoneManager() {
   const nameInput = document.getElementById("newZmName");
   const pinInput = document.getElementById("newZmPin");
+  const roleInput = document.getElementById("newZmRole");
   const name = nameInput.value.trim();
   const pin = pinInput.value.trim();
+  const role = roleInput.value;
   if (!name) { toast("Enter a name first", "err"); return; }
   if (!pin || pin.length < 4) { toast("Enter a PIN of at least 4 digits", "err"); return; }
   if (!zmRef) { toast("Firebase not configured yet", "err"); return; }
-  zmRef.child(safeZmKey(name)).set({ name, pin });
+  zmRef.child(safeZmKey(name)).set({ name, pin, role });
   nameInput.value = "";
   pinInput.value = "";
+  roleInput.value = "manager";
   toast("Zone Manager added", "ok");
 }
 
@@ -1342,29 +1368,46 @@ function renderManagerPinTable() {
   if (!body) return;
   const keys = Object.keys(zoneManagersData);
   if (!keys.length) {
-    body.innerHTML = `<tr><td colspan="3" style="text-align:center; color:var(--slate);">No zone managers added yet.</td></tr>`;
+    body.innerHTML = `<tr><td colspan="4" style="text-align:center; color:var(--slate);">No zone managers added yet.</td></tr>`;
     return;
   }
   body.innerHTML = keys.map(key => {
     const entry = zoneManagersData[key];
     const name = zmName(entry);
     const pin = (entry && typeof entry === "object") ? (entry.pin || "—not set—") : "—not set—";
+    const role = (entry && typeof entry === "object" && entry.role) ? entry.role : "manager";
+    const roleLabel = role === "admin" ? `<span class="tag" style="background:var(--copper); color:#fff;">Admin</span>` : `<span class="tag">Zone Manager</span>`;
     return `
       <tr>
         <td>${escapeHtml(name)}</td>
         <td class="mono">${escapeHtml(pin)}</td>
-        <td><button class="btn btn-ghost btn-sm" onclick="resetManagerPin('${key}')">Change PIN</button></td>
+        <td>${roleLabel}</td>
+        <td style="display:flex; gap:6px; flex-wrap:wrap;">
+          <button class="btn btn-ghost btn-sm" onclick="resetManagerPin('${key}')">Change PIN</button>
+          <button class="btn btn-ghost btn-sm" onclick="toggleManagerRole('${key}')">${role === "admin" ? "Make Manager" : "Make Admin"}</button>
+        </td>
       </tr>`;
   }).join("");
+}
+
+function toggleManagerRole(key) {
+  const entry = zoneManagersData[key];
+  const currentRole = (entry && typeof entry === "object" && entry.role) ? entry.role : "manager";
+  const newRole = currentRole === "admin" ? "manager" : "admin";
+  const name = zmName(entry);
+  const pin = (entry && typeof entry === "object") ? entry.pin : "";
+  zmRef.child(key).set({ name, pin: pin || "", role: newRole });
+  toast(`${name} is now ${newRole === "admin" ? "an Admin" : "a Zone Manager"}`, "ok");
 }
 
 function resetManagerPin(key) {
   const entry = zoneManagersData[key];
   const currentName = zmName(entry);
+  const currentRole = (entry && typeof entry === "object" && entry.role) ? entry.role : "manager";
   const newPin = prompt("Enter new PIN (4+ digits) for " + currentName + ":");
   if (!newPin) return;
   if (newPin.trim().length < 4) { toast("PIN must be at least 4 digits", "err"); return; }
-  zmRef.child(key).set({ name: currentName, pin: newPin.trim() });
+  zmRef.child(key).set({ name: currentName, pin: newPin.trim(), role: currentRole });
   toast("PIN updated", "ok");
 }
 
