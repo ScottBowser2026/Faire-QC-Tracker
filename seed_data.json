@@ -16,7 +16,7 @@
         }
       },
       "b1": {
-        "name": "Fry by Knight (peanut oil) (vegan)",
+        "name": "Fry by Knight",
         "zoneManager": "",
         "menuItems": {
           "i0": {
@@ -29,16 +29,16 @@
           },
           "i1": {
             "name": "Dipping Sauce",
-            "category": "hot-food",
+            "category": "cold-food",
             "requiresTemp": true,
             "requiresTime": true,
-            "minTemp": 135,
+            "minTemp": 41,
             "components": {}
           }
         }
       },
       "b2": {
-        "name": "Kettle Craic (vegetarian)",
+        "name": "Kettle Craic",
         "zoneManager": "",
         "menuItems": {
           "i0": {
@@ -58,7 +58,7 @@
             "components": {}
           },
           "i2": {
-            "name": "Strawberry Lemon Shakeup (32 ounce)",
+            "name": "Strawberry Lemon Shakeup",
             "category": "beverage",
             "requiresTemp": false,
             "requiresTime": true,
@@ -66,7 +66,7 @@
             "components": {}
           },
           "i3": {
-            "name": "Lemon  Shakeups (32 ounce)",
+            "name": "Lemon  Shakeups",
             "category": "beverage",
             "requiresTemp": false,
             "requiresTime": true,
@@ -82,7 +82,7 @@
             "components": {}
           },
           "i5": {
-            "name": "Lemon Shake-ups (refills)",
+            "name": "Lemon Shake-ups",
             "category": "beverage",
             "requiresTemp": false,
             "requiresTime": true,
@@ -92,7 +92,7 @@
         }
       },
       "b3": {
-        "name": "Cosimo's (location Old Archers)",
+        "name": "Cosimo's",
         "zoneManager": "",
         "menuItems": {
           "i0": {
@@ -130,7 +130,7 @@
         }
       },
       "b4": {
-        "name": "Blackbeards Brine (vegan)",
+        "name": "Blackbeards Brine",
         "zoneManager": "",
         "menuItems": {
           "i0": {
@@ -144,7 +144,7 @@
         }
       },
       "b5": {
-        "name": "Wicked Pickle (vegan)",
+        "name": "Wicked Pickle",
         "zoneManager": "",
         "menuItems": {
           "i0": {
@@ -208,7 +208,7 @@
         "zoneManager": "",
         "menuItems": {
           "i0": {
-            "name": "Chicken Tenders (not served with Fries)",
+            "name": "Chicken Tenders",
             "category": "hot-food",
             "requiresTemp": true,
             "requiresTime": true,
@@ -216,7 +216,7 @@
             "components": {}
           },
           "i1": {
-            "name": "Fried Fish (not served with Fries)",
+            "name": "Fried Fish",
             "category": "hot-food",
             "requiresTemp": true,
             "requiresTime": true,
@@ -224,7 +224,7 @@
             "components": {}
           },
           "i2": {
-            "name": "Basket of Fries (1/2 pound)",
+            "name": "Basket of Fries",
             "category": "hot-food",
             "requiresTemp": true,
             "requiresTime": true,
@@ -234,7 +234,7 @@
         }
       },
       "b8": {
-        "name": "Queens Confectionary (vegetarian)",
+        "name": "Queens Confectionary",
         "zoneManager": "",
         "menuItems": {
           "i0": {
@@ -299,14 +299,6 @@
             "minTemp": 135,
             "components": {}
           },
-          "i1": {
-            "name": "Canned Soda",
-            "category": "beverage",
-            "requiresTemp": false,
-            "requiresTime": true,
-            "minTemp": null,
-            "components": {}
-          },
           "i2": {
             "name": "Water",
             "category": "beverage",
@@ -318,7 +310,7 @@
         }
       },
       "b10": {
-        "name": "Tudor Fruit & Tea Co. (vegetarian)",
+        "name": "Tudor Fruit & Tea Co.",
         "zoneManager": "",
         "menuItems": {
           "i0": {
@@ -338,7 +330,7 @@
             "components": {}
           },
           "i2": {
-            "name": "Infused Fruit Water (vegan)",
+            "name": "Infused Fruit Water",
             "category": "beverage",
             "requiresTemp": false,
             "requiresTime": true,
@@ -354,7 +346,7 @@
             "components": {}
           },
           "i4": {
-            "name": "Scones 5oz (vegetarian)",
+            "name": "Scones 5oz",
             "category": "baked-good",
             "requiresTemp": false,
             "requiresTime": true,
@@ -362,7 +354,7 @@
             "components": {}
           },
           "i5": {
-            "name": "Crudite, Carrots & Dip (vegetarian)",
+            "name": "Crudite, Carrots & Dip",
             "category": "cold-food",
             "requiresTemp": true,
             "requiresTime": true,
@@ -370,7 +362,7 @@
             "components": {}
           },
           "i6": {
-            "name": "Crudite Carrots, Tomatoes, Cukes & Dip (vegetarian)",
+            "name": "Crudite Carrots, Tomatoes, Cukes & Dip",
             "category": "cold-food",
             "requiresTemp": true,
             "requiresTime": true,
@@ -378,7 +370,7 @@
             "components": {}
           },
           "i7": {
-            "name": "Fruit Salad (watermelon, lopes & grapes) (vegan)",
+            "name": "Fruit Salad",
             "category": "beverage",
             "requiresTemp": false,
             "requiresTime": true,
@@ -386,7 +378,7 @@
             "components": {}
           },
           "i8": {
-            "name": "Banana Nachos / Apple Nachos (seasonal)",
+            "name": "Banana Nachos / Apple Nachos",
             "category": "hot-food",
             "requiresTemp": true,
             "requiresTime": true,
@@ -470,7 +462,7 @@
         "zoneManager": "",
         "menuItems": {
           "i0": {
-            "name": "Baked Potato w/ Butter (vegetarian)",
+            "name": "Baked Potato w/ Butter",
             "category": "hot-food",
             "requiresTemp": true,
             "requiresTime": true,
@@ -478,7 +470,7 @@
             "components": {}
           },
           "i1": {
-            "name": "Baked Potato w/ Cheese (vegetarian)",
+            "name": "Baked Potato w/ Cheese",
             "category": "hot-food",
             "requiresTemp": true,
             "requiresTime": true,
@@ -509,14 +501,6 @@
             "minTemp": null,
             "components": {}
           },
-          "i5": {
-            "name": "Soda",
-            "category": "beverage",
-            "requiresTemp": false,
-            "requiresTime": true,
-            "minTemp": null,
-            "components": {}
-          },
           "i6": {
             "name": "Water",
             "category": "beverage",
@@ -532,7 +516,7 @@
         "zoneManager": "",
         "menuItems": {
           "i0": {
-            "name": "Classic Mac and Cheese (vegetarian)",
+            "name": "Classic Mac and Cheese",
             "category": "hot-food",
             "requiresTemp": true,
             "requiresTime": true,
@@ -549,14 +533,6 @@
           },
           "i2": {
             "name": "Gatorade",
-            "category": "beverage",
-            "requiresTemp": false,
-            "requiresTime": true,
-            "minTemp": null,
-            "components": {}
-          },
-          "i3": {
-            "name": "Soda",
             "category": "beverage",
             "requiresTemp": false,
             "requiresTime": true,
@@ -583,14 +559,6 @@
             "requiresTemp": true,
             "requiresTime": true,
             "minTemp": 135,
-            "components": {}
-          },
-          "i1": {
-            "name": "Soda",
-            "category": "beverage",
-            "requiresTemp": false,
-            "requiresTime": true,
-            "minTemp": null,
             "components": {}
           },
           "i2": {
@@ -624,7 +592,7 @@
             "components": {}
           },
           "i2": {
-            "name": "Veggie Burger (vegetarian)",
+            "name": "Veggie Burger",
             "category": "hot-food",
             "requiresTemp": true,
             "requiresTime": true,
@@ -632,7 +600,7 @@
             "components": {}
           },
           "i3": {
-            "name": "Basket of Fries ( 1/2 pound )",
+            "name": "Basket of Fries",
             "category": "hot-food",
             "requiresTemp": true,
             "requiresTime": true,
@@ -648,7 +616,7 @@
             "components": {}
           },
           "i5": {
-            "name": "Jumbo Pretzel (vegetarian)",
+            "name": "Jumbo Pretzel",
             "category": "baked-good",
             "requiresTemp": false,
             "requiresTime": true,
@@ -710,7 +678,7 @@
         }
       },
       "b18": {
-        "name": "Dark Knight (vegetarian)",
+        "name": "Dark Knight",
         "zoneManager": "",
         "menuItems": {
           "i0": {
@@ -724,7 +692,7 @@
         }
       },
       "b19": {
-        "name": "Dark Knight Rises (vegetarian)",
+        "name": "Dark Knight Rises",
         "zoneManager": "",
         "menuItems": {
           "i0": {
@@ -776,7 +744,7 @@
             "components": {}
           },
           "i6": {
-            "name": "add a flavor (2 pumps = .5oz)",
+            "name": "add a flavor",
             "category": "other",
             "requiresTemp": false,
             "requiresTime": true,
@@ -794,7 +762,7 @@
         }
       },
       "b20": {
-        "name": "Pretzel Cart (vegetarian)",
+        "name": "Pretzel Cart",
         "zoneManager": "",
         "menuItems": {
           "i0": {
@@ -914,7 +882,7 @@
             "components": {}
           },
           "i5": {
-            "name": "Children Mac and Cheese (no fries)",
+            "name": "Children Mac and Cheese",
             "category": "hot-food",
             "requiresTemp": true,
             "requiresTime": true,
@@ -936,7 +904,7 @@
             "components": {}
           },
           "i1": {
-            "name": "Roasted Nuts (3oz Portion)",
+            "name": "Roasted Nuts",
             "category": "hot-food",
             "requiresTemp": true,
             "requiresTime": true,
@@ -1006,7 +974,7 @@
             "components": {}
           },
           "i3": {
-            "name": "Hot Apple Cider (when weather breaks)",
+            "name": "Hot Apple Cider",
             "category": "beverage",
             "requiresTemp": false,
             "requiresTime": true,
@@ -1014,7 +982,7 @@
             "components": {}
           },
           "i4": {
-            "name": "Add Cocoa Mug (when weather breaks)",
+            "name": "Add Cocoa Mug",
             "category": "other",
             "requiresTemp": false,
             "requiresTime": true,
@@ -1103,14 +1071,6 @@
             "requiresTemp": true,
             "requiresTime": true,
             "minTemp": 135,
-            "components": {}
-          },
-          "i3": {
-            "name": "Soda",
-            "category": "beverage",
-            "requiresTemp": false,
-            "requiresTime": true,
-            "minTemp": null,
             "components": {}
           },
           "i4": {
