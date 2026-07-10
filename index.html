@@ -463,8 +463,11 @@
 
 <header>
   <h1><span class="crest">Q</span> PARF Quality Control</h1>
-  <span id="loggedInAs" class="status-pill" style="display:none;"></span>
-  <span id="connStatus" class="status-pill offline">Connecting…</span>
+  <div style="display:flex; align-items:center; gap:8px;">
+    <span id="loggedInAs" class="status-pill" style="display:none;"></span>
+    <button id="logoutBtn" class="btn btn-ghost btn-sm" style="display:none; color:var(--parchment); border-color:rgba(255,255,255,0.3);" onclick="logoutManager()">Log Out</button>
+    <span id="connStatus" class="status-pill offline">Connecting…</span>
+  </div>
 </header>
 
 <nav class="tabs">
@@ -740,7 +743,8 @@ function attemptLogin() {
   badge.style.display = "inline-block";
   badge.className = "status-pill live";
   const roleTag = loggedInManager.role === "admin" ? " (Admin)" : "";
-  badge.innerHTML = `${escapeHtml(loggedInManager.name)}${roleTag} <span style="cursor:pointer; opacity:.7;" onclick="logoutManager()">(switch)</span>`;
+  badge.textContent = `${loggedInManager.name}${roleTag}`;
+  document.getElementById("logoutBtn").style.display = "inline-flex";
 
   const cb = document.getElementById("qcCheckedBy");
   cb.value = loggedInManager.name;
@@ -767,6 +771,7 @@ function logoutManager() {
   document.getElementById("loginError").textContent = "";
   document.getElementById("loginGate").classList.add("show");
   document.getElementById("loggedInAs").style.display = "none";
+  document.getElementById("logoutBtn").style.display = "none";
   const cb = document.getElementById("qcCheckedBy");
   cb.value = "";
   cb.readOnly = false;
