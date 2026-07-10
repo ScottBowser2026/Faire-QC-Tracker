@@ -725,7 +725,7 @@ function attemptLogin() {
   if (!pin) { errEl.textContent = "Enter your PIN"; return; }
 
   const match = Object.entries(zoneManagersData).find(([key, entry]) => {
-    return entry && typeof entry === "object" && entry.pin && entry.pin === pin;
+    return entry && typeof entry === "object" && entry.pin !== undefined && entry.pin !== null && String(entry.pin) === pin;
   });
 
   if (!match) {
