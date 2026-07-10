@@ -1333,7 +1333,7 @@ function sendEmailNotification(record, checkId) {
     status: record.status.toUpperCase(),
     notes: record.notes || "—",
     photo_url: viewLink || (record.photoUrl ? "Photo attached — view in the Check Log tab of the QC app" : "No photo attached"),
-    photo: record.photoUrl || ""
+    photo: record.photoUrl ? record.photoUrl.replace(/^data:image\/\w+;base64,/, "") : ""
   };
   emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, templateParams)
     .then(() => console.log("QC email sent"))
