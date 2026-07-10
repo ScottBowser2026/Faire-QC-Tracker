@@ -43,7 +43,6 @@
 
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 
 <style>
@@ -542,7 +541,7 @@
         <textarea id="qcNotes" placeholder="Anything worth flagging…"></textarea>
       </div>
 
-      <div id="qcUploadProgress" style="display:none; font-size:.8rem; color:var(--slate); margin-bottom:10px;">Uploading photo…</div>
+      <div id="qcUploadProgress" style="display:none; font-size:.8rem; color:var(--slate); margin-bottom:10px;">Saving check…</div>
 
       <button class="btn btn-primary" id="qcSubmitBtn" style="width:100%; justify-content:center; padding:12px;">
         Submit Check &amp; Email
@@ -716,7 +715,6 @@ try {
 }
 
 const db = firebaseReady ? firebase.database() : null;
-const storage = firebaseReady ? firebase.storage() : null;
 const boothsRef = db ? db.ref("qc/booths") : null;
 const checksRef = db ? db.ref("qc/checks") : null;
 const zmRef = db ? db.ref("qc/zoneManagers") : null;
@@ -1124,17 +1122,33 @@ function setDefaultTime() {
 }
 setDefaultTime();
 
+let compressedPhotoDataUrl = null;
+
 document.getElementById("qcPhoto").addEventListener("change", (e) => {
   const file = e.target.files[0];
   const wrap = document.getElementById("qcPhotoPreviewWrap");
   const img = document.getElementById("qcPhotoPreview");
-  if (file) {
-    const reader = new FileReader();
-    reader.onload = (ev) => { img.src = ev.target.result; wrap.style.display = "block"; };
-    reader.readAsDataURL(file);
-  } else {
-    wrap.style.display = "none";
-  }
+  compressedPhotoDataUrl = null;
+  if (!file) { wrap.style.display = "none"; return; }
+
+  const reader = new FileReader();
+  reader.onload = (ev) => {
+    const tempImg = new Image();
+    tempImg.onload = () => {
+      const MAX_DIM = 900;
+      let w = tempImg.width, h = tempImg.height;
+      if (w > h && w > MAX_DIM) { h = Math.round(h * MAX_DIM / w); w = MAX_DIM; }
+      else if (h > MAX_DIM) { w = Math.round(w * MAX_DIM / h); h = MAX_DIM; }
+      const canvas = document.createElement("canvas");
+      canvas.width = w; canvas.height = h;
+      canvas.getContext("2d").drawImage(tempImg, 0, 0, w, h);
+      compressedPhotoDataUrl = canvas.toDataURL("image/jpeg", 0.55);
+      img.src = compressedPhotoDataUrl;
+      wrap.style.display = "block";
+    };
+    tempImg.src = ev.target.result;
+  };
+  reader.readAsDataURL(file);
 });
 
 qcBoothSel.addEventListener("change", () => {
@@ -1181,13 +1195,12 @@ document.getElementById("qcSubmitBtn").addEventListener("click", () => {
   const checkTime = document.getElementById("qcTime").value;
   const tempVal = document.getElementById("qcTemp").value;
   const notes = document.getElementById("qcNotes").value.trim();
-  const photoFile = document.getElementById("qcPhoto").files[0];
 
   if (!boothId) { toast("Select a booth", "err"); return; }
   if (!itemId) { toast("Select a menu item", "err"); return; }
   if (!checkedBy) { toast("Enter who's running this check", "err"); return; }
   if (!checkTime) { toast("Set the check time", "err"); return; }
-  if (!photoFile) { toast("A photo is required to submit this check", "err"); return; }
+  if (!compressedPhotoDataUrl) { toast("A photo is required to submit this check", "err"); return; }
 
   const booth = boothsData[boothId];
   const item = booth.menuItems[itemId];
@@ -1212,46 +1225,42 @@ document.getElementById("qcSubmitBtn").addEventListener("click", () => {
     }
   }
 
-  if (!storage) { toast("Firebase Storage not configured yet", "err"); return; }
+  if (!checksRef) { toast("Firebase not configured yet", "err"); return; }
 
   const submitBtn = document.getElementById("qcSubmitBtn");
   const progressEl = document.getElementById("qcUploadProgress");
   submitBtn.disabled = true;
   progressEl.style.display = "block";
+  progressEl.textContent = "Saving check…";
 
-  const safeName = photoFile.name.replace(/[^a-zA-Z0-9._-]/g, "_");
-  const storagePath = `qc-photos/${boothId}/${itemId}/${Date.now()}_${safeName}`;
-  const storageRef = storage.ref().child(storagePath);
+  const record = {
+    boothId,
+    boothName: booth.name,
+    zoneManager: booth.zoneManager || "Unassigned",
+    itemId,
+    itemName: item.name,
+    checkedBy,
+    checkTime,
+    temp: item.requiresTemp ? parseFloat(tempVal) : null,
+    minTemp: item.minTemp || null,
+    status,
+    notes,
+    photoUrl: compressedPhotoDataUrl,
+    submittedAt: Date.now()
+  };
 
-  storageRef.put(photoFile).then(snapshot => snapshot.ref.getDownloadURL()).then(photoUrl => {
-    const record = {
-      boothId,
-      boothName: booth.name,
-      zoneManager: booth.zoneManager || "Unassigned",
-      itemId,
-      itemName: item.name,
-      checkedBy,
-      checkTime,
-      temp: item.requiresTemp ? parseFloat(tempVal) : null,
-      minTemp: item.minTemp || null,
-      status,
-      notes,
-      photoUrl,
-      submittedAt: Date.now()
-    };
-
-    return checksRef.push().set(record).then(() => record);
-  }).then(record => {
+  checksRef.push().set(record).then(() => {
     toast("Check saved", "ok");
     sendEmailNotification(record);
     document.getElementById("qcTemp").value = "";
     document.getElementById("qcNotes").value = "";
     document.getElementById("qcPhoto").value = "";
     document.getElementById("qcPhotoPreviewWrap").style.display = "none";
+    compressedPhotoDataUrl = null;
     setDefaultTime();
   }).catch(err => {
     console.error(err);
-    toast("Failed to save check (photo upload or save error)", "err");
+    toast("Failed to save check", "err");
   }).finally(() => {
     submitBtn.disabled = false;
     progressEl.style.display = "none";
@@ -1272,7 +1281,7 @@ function sendEmailNotification(record) {
     temp_reading: record.temp !== null ? record.temp + "°F" : "N/A (no temp required)",
     status: record.status.toUpperCase(),
     notes: record.notes || "—",
-    photo_url: record.photoUrl || "No photo attached"
+    photo_url: record.photoUrl ? "Photo attached — view in the Check Log tab of the QC app" : "No photo attached"
   };
   emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, templateParams)
     .then(() => console.log("QC email sent"))
