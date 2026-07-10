@@ -449,8 +449,21 @@
 </head>
 <body>
 
+<div class="modal-overlay show" id="loginGate" style="z-index:300; background:var(--ink);">
+  <div class="modal-box" style="max-width:340px; text-align:center;">
+    <h3 style="margin-bottom:2px;">Zone Manager Login</h3>
+    <div class="temp-hint" style="margin-bottom:16px;">Enter your PIN to run checks</div>
+    <div class="field">
+      <input type="password" inputmode="numeric" id="loginPinInput" placeholder="PIN" style="text-align:center; font-size:1.3rem; letter-spacing:.2em;" maxlength="8">
+    </div>
+    <div id="loginError" style="color:var(--red); font-size:.82rem; min-height:18px; margin-bottom:6px;"></div>
+    <button class="btn btn-primary" id="loginSubmitBtn" style="width:100%; justify-content:center; padding:11px;">Log In</button>
+  </div>
+</div>
+
 <header>
   <h1><span class="crest">Q</span> PARF Quality Control</h1>
+  <span id="loggedInAs" class="status-pill" style="display:none;"></span>
   <span id="connStatus" class="status-pill offline">Connecting…</span>
 </header>
 
@@ -563,9 +576,16 @@
     <div class="section-head"><h2>Zone Manager Assignments</h2></div>
     <div class="zm-box">
       <span class="label">Add New Zone Manager</span>
-      <input type="text" id="newZmName" placeholder="e.g. Jane Smith" style="max-width:200px;">
+      <input type="text" id="newZmName" placeholder="e.g. Jane Smith" style="max-width:180px;">
+      <input type="password" inputmode="numeric" id="newZmPin" placeholder="4-digit PIN" maxlength="8" style="max-width:120px;">
       <button class="btn btn-secondary btn-sm" onclick="addNewZoneManager()">Add</button>
     </div>
+
+    <div class="section-head" style="margin-top:22px;"><h3 style="margin:0; font-size:1.05rem;">Manager PINs</h3></div>
+    <table class="log" id="managerPinTable" style="margin-bottom:24px;">
+      <thead><tr><th>Name</th><th>PIN</th><th></th></tr></thead>
+      <tbody id="managerPinBody"></tbody>
+    </table>
 
     <div class="zm-box" style="border-left-color:var(--ink);">
       <span class="label">Assign to Selected Booths</span>
@@ -690,6 +710,58 @@ let boothsData = {};
 let zoneManagersData = {};
 let checksData = {};
 let activeBoothId = null;
+let loggedInManager = null; // { key, name, pin }
+
+/* ===================================================================
+   LOGIN GATE — PIN-based Zone Manager login
+   =================================================================== */
+function attemptLogin() {
+  const pin = document.getElementById("loginPinInput").value.trim();
+  const errEl = document.getElementById("loginError");
+  if (!pin) { errEl.textContent = "Enter your PIN"; return; }
+
+  const match = Object.entries(zoneManagersData).find(([key, entry]) => {
+    return entry && typeof entry === "object" && entry.pin && entry.pin === pin;
+  });
+
+  if (!match) {
+    errEl.textContent = "PIN not recognized. Try again or see your F&B Director.";
+    return;
+  }
+
+  const [key, entry] = match;
+  loggedInManager = { key, name: entry.name, pin: entry.pin };
+  document.getElementById("loginGate").classList.remove("show");
+  const badge = document.getElementById("loggedInAs");
+  badge.style.display = "inline-block";
+  badge.className = "status-pill live";
+  badge.innerHTML = `${escapeHtml(loggedInManager.name)} <span style="cursor:pointer; opacity:.7;" onclick="logoutManager()">(switch)</span>`;
+
+  const cb = document.getElementById("qcCheckedBy");
+  cb.value = loggedInManager.name;
+  cb.readOnly = true;
+  cb.style.background = "var(--parchment-dim)";
+
+  populateBoothSelect();
+  toast(`Welcome, ${loggedInManager.name}`, "ok");
+}
+
+function logoutManager() {
+  loggedInManager = null;
+  document.getElementById("loginPinInput").value = "";
+  document.getElementById("loginError").textContent = "";
+  document.getElementById("loginGate").classList.add("show");
+  document.getElementById("loggedInAs").style.display = "none";
+  const cb = document.getElementById("qcCheckedBy");
+  cb.value = "";
+  cb.readOnly = false;
+  cb.style.background = "";
+}
+
+document.getElementById("loginSubmitBtn").addEventListener("click", attemptLogin);
+document.getElementById("loginPinInput").addEventListener("keydown", (e) => {
+  if (e.key === "Enter") attemptLogin();
+});
 
 /* ---------------- Connection status ---------------- */
 if (db) {
@@ -744,6 +816,7 @@ if (zmRef) {
     zoneManagersData = snap.val() || {};
     populateZmSelect();
     renderZmAssignTable();
+    renderManagerPinTable();
   });
 }
 if (checksRef) {
@@ -780,7 +853,18 @@ function renderBoothGrid() {
 function populateBoothSelect() {
   const sel = document.getElementById("qcBooth");
   const current = sel.value;
-  const ids = Object.keys(boothsData);
+  let ids = Object.keys(boothsData);
+
+  if (loggedInManager) {
+    ids = ids.filter(id => boothsData[id].zoneManager === loggedInManager.name);
+  }
+
+  if (loggedInManager && !ids.length) {
+    sel.innerHTML = `<option value="">No booths assigned to you yet</option>`;
+    sel.disabled = true;
+    return;
+  }
+  sel.disabled = false;
   sel.innerHTML = `<option value="">Select a booth…</option>` + ids.map(id =>
     `<option value="${id}">${escapeHtml(boothsData[id].name || "Unnamed Booth")}</option>`
   ).join("");
@@ -867,7 +951,7 @@ function saveBooth() {
   if (!boothsRef) { toast("Firebase not configured yet", "err"); return; }
   const newRef = boothsRef.push();
   newRef.set({ name, zoneManager: zm || "", menuItems: {} });
-  if (zm && zmRef) zmRef.child(zm.replace(/[.#$/\[\]]/g, "_")).set(zm);
+  if (zm && zmRef) upsertZoneManagerName(zm);
   closeModal("boothModalOverlay");
   toast("Booth added", "ok");
 }
@@ -879,10 +963,14 @@ function deleteBooth(id) {
 }
 
 /* ---------------- Zone Manager assignment ---------------- */
+function zmName(entry) {
+  return (entry && typeof entry === "object") ? entry.name : entry;
+}
+
 function populateZmSelect() {
   const sel = document.getElementById("zmSelect");
   if (!sel) return;
-  const names = Object.values(zoneManagersData);
+  const names = Object.values(zoneManagersData).map(zmName).filter(Boolean);
   const current = sel.value;
   sel.innerHTML = `<option value="">Unassigned</option>` + names.map(n =>
     `<option value="${escapeHtml(n)}">${escapeHtml(n)}</option>`
@@ -897,7 +985,7 @@ function saveZoneManager() {
   const finalName = custom || sel;
   if (!finalName) { toast("Pick or enter a zone manager", "err"); return; }
   boothsRef.child(activeBoothId).child("zoneManager").set(finalName);
-  if (zmRef) zmRef.child(finalName.replace(/[.#$/\[\]]/g, "_")).set(finalName);
+  if (zmRef) upsertZoneManagerName(finalName);
   document.getElementById("zmCustom").value = "";
   toast("Zone Manager updated", "ok");
 }
@@ -1051,6 +1139,7 @@ qcItemSel.addEventListener("change", () => {
 });
 
 document.getElementById("qcSubmitBtn").addEventListener("click", () => {
+  if (!loggedInManager) { toast("Please log in with your PIN first", "err"); return; }
   const boothId = qcBoothSel.value;
   const itemId = qcItemSel.value;
   const checkedBy = document.getElementById("qcCheckedBy").value.trim();
@@ -1067,6 +1156,11 @@ document.getElementById("qcSubmitBtn").addEventListener("click", () => {
 
   const booth = boothsData[boothId];
   const item = booth.menuItems[itemId];
+
+  if (booth.zoneManager !== loggedInManager.name) {
+    toast("That booth isn't assigned to you", "err");
+    return;
+  }
 
   if (item.requiresTemp && !tempVal) { toast("Enter a temperature reading", "err"); return; }
 
@@ -1210,7 +1304,7 @@ function renderZmAssignTable() {
   }).join("");
 
   const bulkSel = document.getElementById("bulkZmSelect");
-  const names = Object.values(zoneManagersData);
+  const names = Object.values(zoneManagersData).map(zmName).filter(Boolean);
   const current = bulkSel.value;
   bulkSel.innerHTML = `<option value="">Choose zone manager…</option>` + names.map(n =>
     `<option value="${escapeHtml(n)}">${escapeHtml(n)}</option>`
@@ -1218,14 +1312,60 @@ function renderZmAssignTable() {
   if (names.includes(current)) bulkSel.value = current;
 }
 
+function safeZmKey(name) {
+  return name.replace(/[.#$/\[\]]/g, "_");
+}
+
+function upsertZoneManagerName(name) {
+  const key = safeZmKey(name);
+  const existing = zoneManagersData[key];
+  const pin = (existing && typeof existing === "object") ? existing.pin : "";
+  zmRef.child(key).set({ name, pin: pin || "" });
+}
+
 function addNewZoneManager() {
-  const input = document.getElementById("newZmName");
-  const name = input.value.trim();
+  const nameInput = document.getElementById("newZmName");
+  const pinInput = document.getElementById("newZmPin");
+  const name = nameInput.value.trim();
+  const pin = pinInput.value.trim();
   if (!name) { toast("Enter a name first", "err"); return; }
+  if (!pin || pin.length < 4) { toast("Enter a PIN of at least 4 digits", "err"); return; }
   if (!zmRef) { toast("Firebase not configured yet", "err"); return; }
-  zmRef.child(name.replace(/[.#$/\[\]]/g, "_")).set(name);
-  input.value = "";
+  zmRef.child(safeZmKey(name)).set({ name, pin });
+  nameInput.value = "";
+  pinInput.value = "";
   toast("Zone Manager added", "ok");
+}
+
+function renderManagerPinTable() {
+  const body = document.getElementById("managerPinBody");
+  if (!body) return;
+  const keys = Object.keys(zoneManagersData);
+  if (!keys.length) {
+    body.innerHTML = `<tr><td colspan="3" style="text-align:center; color:var(--slate);">No zone managers added yet.</td></tr>`;
+    return;
+  }
+  body.innerHTML = keys.map(key => {
+    const entry = zoneManagersData[key];
+    const name = zmName(entry);
+    const pin = (entry && typeof entry === "object") ? (entry.pin || "—not set—") : "—not set—";
+    return `
+      <tr>
+        <td>${escapeHtml(name)}</td>
+        <td class="mono">${escapeHtml(pin)}</td>
+        <td><button class="btn btn-ghost btn-sm" onclick="resetManagerPin('${key}')">Change PIN</button></td>
+      </tr>`;
+  }).join("");
+}
+
+function resetManagerPin(key) {
+  const entry = zoneManagersData[key];
+  const currentName = zmName(entry);
+  const newPin = prompt("Enter new PIN (4+ digits) for " + currentName + ":");
+  if (!newPin) return;
+  if (newPin.trim().length < 4) { toast("PIN must be at least 4 digits", "err"); return; }
+  zmRef.child(key).set({ name: currentName, pin: newPin.trim() });
+  toast("PIN updated", "ok");
 }
 
 function toggleSelectAllBooths() {
