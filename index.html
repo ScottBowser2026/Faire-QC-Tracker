@@ -35,6 +35,7 @@
 
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 
 <style>
@@ -288,6 +289,7 @@
     color:var(--ink-soft);
   }
   .tag.temp-req{background:var(--red-dim); color:var(--copper-dark);}
+  .tag.cold-req{background:#DCE7F2; color:#2C5A82;}
   .tag.no-temp{background:var(--green-dim); color:var(--green);}
   .components-list{font-size:.8rem; color:var(--slate); margin-top:4px;}
   .components-list span{
@@ -455,6 +457,7 @@
 <nav class="tabs">
   <button data-tab="checkView" class="active">New Check</button>
   <button data-tab="boothsView">Booths &amp; Menus</button>
+  <button data-tab="zoneManagersView">Zone Managers</button>
   <button data-tab="historyView">Check Log</button>
 </nav>
 
@@ -502,9 +505,20 @@
       </div>
 
       <div class="field">
+        <label>Photo (required)</label>
+        <input type="file" id="qcPhoto" accept="image/*" capture="environment">
+        <div id="qcPhotoPreviewWrap" style="display:none; margin-top:8px;">
+          <img id="qcPhotoPreview" style="max-width:100%; max-height:180px; border-radius:6px; border:1px solid var(--line);">
+        </div>
+        <div class="temp-hint" style="margin-top:5px;">Snap a photo of the item/reading as proof of the check.</div>
+      </div>
+
+      <div class="field">
         <label>Notes (optional)</label>
         <textarea id="qcNotes" placeholder="Anything worth flagging…"></textarea>
       </div>
+
+      <div id="qcUploadProgress" style="display:none; font-size:.8rem; color:var(--slate); margin-bottom:10px;">Uploading photo…</div>
 
       <button class="btn btn-primary" id="qcSubmitBtn" style="width:100%; justify-content:center; padding:12px;">
         Submit Check &amp; Email
@@ -542,6 +556,30 @@
       <div class="item-grid" id="itemGrid"></div>
     </div>
 
+  </section>
+
+  <!-- ===================== ZONE MANAGERS VIEW ===================== -->
+  <section id="zoneManagersView" class="view">
+    <div class="section-head"><h2>Zone Manager Assignments</h2></div>
+    <div class="zm-box">
+      <span class="label">Add New Zone Manager</span>
+      <input type="text" id="newZmName" placeholder="e.g. Jane Smith" style="max-width:200px;">
+      <button class="btn btn-secondary btn-sm" onclick="addNewZoneManager()">Add</button>
+    </div>
+
+    <div class="zm-box" style="border-left-color:var(--ink);">
+      <span class="label">Assign to Selected Booths</span>
+      <select id="bulkZmSelect"><option value="">Choose zone manager…</option></select>
+      <button class="btn btn-primary btn-sm" onclick="applyBulkZoneManager()">Assign to Checked Booths</button>
+      <button class="btn btn-ghost btn-sm" onclick="toggleSelectAllBooths()">Select / Deselect All</button>
+    </div>
+
+    <table class="log" id="zmAssignTable">
+      <thead><tr>
+        <th style="width:40px;"></th><th>Booth</th><th>Current Zone Manager</th>
+      </tr></thead>
+      <tbody id="zmAssignBody"></tbody>
+    </table>
   </section>
 
   <!-- ===================== HISTORY VIEW ===================== -->
@@ -643,6 +681,7 @@ try {
 }
 
 const db = firebaseReady ? firebase.database() : null;
+const storage = firebaseReady ? firebase.storage() : null;
 const boothsRef = db ? db.ref("qc/booths") : null;
 const checksRef = db ? db.ref("qc/checks") : null;
 const zmRef = db ? db.ref("qc/zoneManagers") : null;
@@ -697,12 +736,14 @@ if (boothsRef) {
     populateBoothSelect();
     if (activeBoothId) renderBoothDetail(activeBoothId);
     populateHistoryFilter();
+    renderZmAssignTable();
   });
 }
 if (zmRef) {
   zmRef.on("value", (snap) => {
     zoneManagersData = snap.val() || {};
     populateZmSelect();
+    renderZmAssignTable();
   });
 }
 if (checksRef) {
@@ -786,9 +827,14 @@ function renderBoothDetail(id) {
   grid.innerHTML = itemIds.map(itemId => {
     const it = items[itemId];
     const comps = it.components ? Object.values(it.components) : [];
-    const tempTag = it.requiresTemp
-      ? `<span class="tag temp-req">Temp required${it.minTemp ? " ≥ " + it.minTemp + "°F" : ""}</span>`
-      : `<span class="tag no-temp">No temp check (e.g. baked good)</span>`;
+    let tempTag;
+    if (it.requiresTemp && it.category === "cold-food") {
+      tempTag = `<span class="tag cold-req">Cold holding required${it.minTemp ? " ≤ " + it.minTemp + "°F" : ""}</span>`;
+    } else if (it.requiresTemp) {
+      tempTag = `<span class="tag temp-req">Temp required${it.minTemp ? " ≥ " + it.minTemp + "°F" : ""}</span>`;
+    } else {
+      tempTag = `<span class="tag no-temp">No temp check (e.g. baked good)</span>`;
+    }
     const stampClass = it.requiresTemp ? "none" : "none";
     return `
       <div class="item-card">
@@ -955,6 +1001,19 @@ function setDefaultTime() {
 }
 setDefaultTime();
 
+document.getElementById("qcPhoto").addEventListener("change", (e) => {
+  const file = e.target.files[0];
+  const wrap = document.getElementById("qcPhotoPreviewWrap");
+  const img = document.getElementById("qcPhotoPreview");
+  if (file) {
+    const reader = new FileReader();
+    reader.onload = (ev) => { img.src = ev.target.result; wrap.style.display = "block"; };
+    reader.readAsDataURL(file);
+  } else {
+    wrap.style.display = "none";
+  }
+});
+
 qcBoothSel.addEventListener("change", () => {
   const b = boothsData[qcBoothSel.value];
   qcZmDisplay.textContent = b ? `Zone Manager: ${b.zoneManager || "Unassigned"}` : "";
@@ -979,7 +1038,11 @@ qcItemSel.addEventListener("change", () => {
   if (!it) { qcTempField.style.display = "none"; qcBakedNote.style.display = "none"; return; }
   if (it.requiresTemp) {
     qcTempField.style.display = "block";
-    qcTempMin.textContent = it.minTemp ? `min ${it.minTemp}°F` : "";
+    if (it.category === "cold-food") {
+      qcTempMin.textContent = it.minTemp ? `max ${it.minTemp}°F` : "";
+    } else {
+      qcTempMin.textContent = it.minTemp ? `min ${it.minTemp}°F` : "";
+    }
     qcBakedNote.style.display = "none";
   } else {
     qcTempField.style.display = "none";
@@ -994,11 +1057,13 @@ document.getElementById("qcSubmitBtn").addEventListener("click", () => {
   const checkTime = document.getElementById("qcTime").value;
   const tempVal = document.getElementById("qcTemp").value;
   const notes = document.getElementById("qcNotes").value.trim();
+  const photoFile = document.getElementById("qcPhoto").files[0];
 
   if (!boothId) { toast("Select a booth", "err"); return; }
   if (!itemId) { toast("Select a menu item", "err"); return; }
   if (!checkedBy) { toast("Enter who's running this check", "err"); return; }
   if (!checkTime) { toast("Set the check time", "err"); return; }
+  if (!photoFile) { toast("A photo is required to submit this check", "err"); return; }
 
   const booth = boothsData[boothId];
   const item = booth.menuItems[itemId];
@@ -1008,37 +1073,59 @@ document.getElementById("qcSubmitBtn").addEventListener("click", () => {
   let status = "na";
   if (item.requiresTemp) {
     if (item.minTemp) {
-      status = parseFloat(tempVal) >= item.minTemp ? "pass" : "fail";
+      if (item.category === "cold-food") {
+        status = parseFloat(tempVal) <= item.minTemp ? "pass" : "fail";
+      } else {
+        status = parseFloat(tempVal) >= item.minTemp ? "pass" : "fail";
+      }
     } else {
       status = "pass";
     }
   }
 
-  const record = {
-    boothId,
-    boothName: booth.name,
-    zoneManager: booth.zoneManager || "Unassigned",
-    itemId,
-    itemName: item.name,
-    checkedBy,
-    checkTime,
-    temp: item.requiresTemp ? parseFloat(tempVal) : null,
-    minTemp: item.minTemp || null,
-    status,
-    notes,
-    submittedAt: Date.now()
-  };
+  if (!storage) { toast("Firebase Storage not configured yet", "err"); return; }
 
-  if (!checksRef) { toast("Firebase not configured yet", "err"); return; }
-  checksRef.push().set(record).then(() => {
+  const submitBtn = document.getElementById("qcSubmitBtn");
+  const progressEl = document.getElementById("qcUploadProgress");
+  submitBtn.disabled = true;
+  progressEl.style.display = "block";
+
+  const safeName = photoFile.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+  const storagePath = `qc-photos/${boothId}/${itemId}/${Date.now()}_${safeName}`;
+  const storageRef = storage.ref().child(storagePath);
+
+  storageRef.put(photoFile).then(snapshot => snapshot.ref.getDownloadURL()).then(photoUrl => {
+    const record = {
+      boothId,
+      boothName: booth.name,
+      zoneManager: booth.zoneManager || "Unassigned",
+      itemId,
+      itemName: item.name,
+      checkedBy,
+      checkTime,
+      temp: item.requiresTemp ? parseFloat(tempVal) : null,
+      minTemp: item.minTemp || null,
+      status,
+      notes,
+      photoUrl,
+      submittedAt: Date.now()
+    };
+
+    return checksRef.push().set(record).then(() => record);
+  }).then(record => {
     toast("Check saved", "ok");
     sendEmailNotification(record);
     document.getElementById("qcTemp").value = "";
     document.getElementById("qcNotes").value = "";
+    document.getElementById("qcPhoto").value = "";
+    document.getElementById("qcPhotoPreviewWrap").style.display = "none";
     setDefaultTime();
   }).catch(err => {
     console.error(err);
-    toast("Failed to save check", "err");
+    toast("Failed to save check (photo upload or save error)", "err");
+  }).finally(() => {
+    submitBtn.disabled = false;
+    progressEl.style.display = "none";
   });
 });
 
@@ -1055,7 +1142,8 @@ function sendEmailNotification(record) {
     check_time: record.checkTime,
     temp_reading: record.temp !== null ? record.temp + "°F" : "N/A (no temp required)",
     status: record.status.toUpperCase(),
-    notes: record.notes || "—"
+    notes: record.notes || "—",
+    photo_url: record.photoUrl || "No photo attached"
   };
   emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, templateParams)
     .then(() => console.log("QC email sent"))
@@ -1085,7 +1173,7 @@ function renderHistory() {
   wrap.innerHTML = `
     <table class="log">
       <thead><tr>
-        <th>Time</th><th>Booth</th><th>Item</th><th>Zone Mgr</th><th>Checked By</th><th>Temp</th><th>Status</th><th>Notes</th>
+        <th>Time</th><th>Booth</th><th>Item</th><th>Zone Mgr</th><th>Checked By</th><th>Temp</th><th>Status</th><th>Photo</th><th>Notes</th>
       </tr></thead>
       <tbody>
         ${rows.map(r => `
@@ -1097,10 +1185,65 @@ function renderHistory() {
             <td>${escapeHtml(r.checkedBy || "")}</td>
             <td class="mono">${r.temp !== null && r.temp !== undefined ? r.temp + "°F" : "—"}</td>
             <td><span class="badge ${r.status}">${r.status === "na" ? "LOGGED" : r.status.toUpperCase()}</span></td>
+            <td>${r.photoUrl ? `<a href="${r.photoUrl}" target="_blank" rel="noopener"><img src="${r.photoUrl}" style="width:44px;height:44px;object-fit:cover;border-radius:5px;border:1px solid var(--line);"></a>` : "—"}</td>
             <td>${escapeHtml(r.notes || "")}</td>
           </tr>`).join("")}
       </tbody>
     </table>`;
+}
+
+/* ===================================================================
+   ZONE MANAGERS TAB — bulk assignment
+   =================================================================== */
+function renderZmAssignTable() {
+  const body = document.getElementById("zmAssignBody");
+  if (!body) return;
+  const ids = Object.keys(boothsData);
+  body.innerHTML = ids.map(id => {
+    const b = boothsData[id];
+    return `
+      <tr>
+        <td><input type="checkbox" class="zm-booth-checkbox" data-booth-id="${id}"></td>
+        <td>${escapeHtml(b.name || "Unnamed Booth")}</td>
+        <td>${escapeHtml(b.zoneManager || "Unassigned")}</td>
+      </tr>`;
+  }).join("");
+
+  const bulkSel = document.getElementById("bulkZmSelect");
+  const names = Object.values(zoneManagersData);
+  const current = bulkSel.value;
+  bulkSel.innerHTML = `<option value="">Choose zone manager…</option>` + names.map(n =>
+    `<option value="${escapeHtml(n)}">${escapeHtml(n)}</option>`
+  ).join("");
+  if (names.includes(current)) bulkSel.value = current;
+}
+
+function addNewZoneManager() {
+  const input = document.getElementById("newZmName");
+  const name = input.value.trim();
+  if (!name) { toast("Enter a name first", "err"); return; }
+  if (!zmRef) { toast("Firebase not configured yet", "err"); return; }
+  zmRef.child(name.replace(/[.#$/\[\]]/g, "_")).set(name);
+  input.value = "";
+  toast("Zone Manager added", "ok");
+}
+
+function toggleSelectAllBooths() {
+  const boxes = document.querySelectorAll(".zm-booth-checkbox");
+  const allChecked = Array.from(boxes).every(b => b.checked);
+  boxes.forEach(b => b.checked = !allChecked);
+}
+
+function applyBulkZoneManager() {
+  const name = document.getElementById("bulkZmSelect").value;
+  if (!name) { toast("Choose a zone manager first", "err"); return; }
+  const boxes = document.querySelectorAll(".zm-booth-checkbox:checked");
+  if (!boxes.length) { toast("Check at least one booth", "err"); return; }
+  boxes.forEach(b => {
+    const boothId = b.dataset.boothId;
+    boothsRef.child(boothId).child("zoneManager").set(name);
+  });
+  toast(`Assigned ${name} to ${boxes.length} booth${boxes.length===1?"":"s"}`, "ok");
 }
 
 /* ---------------- Utility ---------------- */
