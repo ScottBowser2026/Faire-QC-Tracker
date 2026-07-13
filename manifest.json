@@ -1,6 +1,6 @@
 {
-  "name": "PARF Quality Control",
-  "short_name": "PARF QC",
+  "name": "PRFQC",
+  "short_name": "PRFQC",
   "description": "Time & temperature quality control tracker for PARF food booths",
   "start_url": "./index.html",
   "scope": "./",
