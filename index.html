@@ -458,13 +458,31 @@
 
 <div class="modal-overlay show" id="loginGate" style="z-index:300; background:var(--ink);">
   <div class="modal-box" style="max-width:340px; text-align:center;">
-    <h3 style="margin-bottom:2px;">Zone Manager Login</h3>
-    <div class="temp-hint" style="margin-bottom:16px;">Enter your PIN to run checks</div>
-    <div class="field">
-      <input type="password" inputmode="numeric" id="loginPinInput" placeholder="PIN" style="text-align:center; font-size:1.3rem; letter-spacing:.2em;" maxlength="8">
+    <div id="loginPanel">
+      <h3 style="margin-bottom:2px;">Zone Manager Login</h3>
+      <div class="temp-hint" style="margin-bottom:16px;">Enter your PIN to run checks</div>
+      <div class="field">
+        <input type="password" inputmode="numeric" id="loginPinInput" placeholder="PIN" style="text-align:center; font-size:1.3rem; letter-spacing:.2em;" maxlength="8">
+      </div>
+      <div id="loginError" style="color:var(--red); font-size:.82rem; min-height:18px; margin-bottom:6px;"></div>
+      <button class="btn btn-primary" id="loginSubmitBtn" style="width:100%; justify-content:center; padding:11px;">Log In</button>
+      <div style="margin-top:14px;">
+        <a href="#" onclick="showForgotPinPanel(); return false;" style="color:var(--copper); font-size:.82rem; text-decoration:underline;">Forgot PIN?</a>
+      </div>
     </div>
-    <div id="loginError" style="color:var(--red); font-size:.82rem; min-height:18px; margin-bottom:6px;"></div>
-    <button class="btn btn-primary" id="loginSubmitBtn" style="width:100%; justify-content:center; padding:11px;">Log In</button>
+
+    <div id="forgotPinPanel" style="display:none;">
+      <h3 style="margin-bottom:2px;">Reset Your PIN</h3>
+      <div class="temp-hint" style="margin-bottom:16px;">Enter the email on file and we'll send a new PIN</div>
+      <div class="field">
+        <input type="email" id="forgotPinEmail" placeholder="you@example.com" style="text-align:center;">
+      </div>
+      <div id="forgotPinMsg" style="color:var(--slate); font-size:.82rem; min-height:18px; margin-bottom:6px;"></div>
+      <button class="btn btn-primary" id="forgotPinSubmitBtn" style="width:100%; justify-content:center; padding:11px;">Send New PIN</button>
+      <div style="margin-top:14px;">
+        <a href="#" onclick="showLoginPanel(); return false;" style="color:var(--copper); font-size:.82rem; text-decoration:underline;">Back to login</a>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -595,8 +613,10 @@
     <div class="section-head"><h2>Zone Manager Assignments</h2></div>
     <div class="zm-box">
       <span class="label">Add New Zone Manager</span>
-      <input type="text" id="newZmName" placeholder="e.g. Jane Smith" style="max-width:170px;">
-      <input type="password" inputmode="numeric" id="newZmPin" placeholder="4-digit PIN" maxlength="8" style="max-width:110px;">
+      <input type="text" id="newZmName" placeholder="e.g. Jane Smith" style="max-width:140px;">
+      <input type="email" id="newZmEmail" placeholder="Email" style="max-width:150px;">
+      <input type="tel" id="newZmPhone" placeholder="Mobile #" style="max-width:120px;">
+      <input type="password" inputmode="numeric" id="newZmPin" placeholder="4-digit PIN" maxlength="8" style="max-width:100px;">
       <select id="newZmRole" style="padding:7px 10px; border:1px solid var(--line); border-radius:6px;">
         <option value="manager">Zone Manager</option>
         <option value="admin">Admin</option>
@@ -606,7 +626,7 @@
 
     <div class="section-head" style="margin-top:22px;"><h3 style="margin:0; font-size:1.05rem;">Manager PINs &amp; Roles</h3></div>
     <table class="log" id="managerPinTable" style="margin-bottom:24px;">
-      <thead><tr><th>Name</th><th>PIN</th><th>Role</th><th></th></tr></thead>
+      <thead><tr><th>Name</th><th>Email</th><th>Phone</th><th>PIN</th><th>Role</th><th></th></tr></thead>
       <tbody id="managerPinBody"></tbody>
     </table>
 
@@ -713,6 +733,7 @@ const firebaseConfig = {
 const EMAILJS_PUBLIC_KEY  = "sB7w0MyBj_u6ayu_0";
 const EMAILJS_SERVICE_ID  = "service_inri5q5";
 const EMAILJS_TEMPLATE_ID = "template_4oo6zn3";
+const EMAILJS_PIN_RESET_TEMPLATE_ID = "template_ioffeqn";
 
 let firebaseReady = false;
 try {
@@ -784,6 +805,7 @@ function logoutManager() {
   loggedInManager = null;
   document.getElementById("loginPinInput").value = "";
   document.getElementById("loginError").textContent = "";
+  showLoginPanel();
   document.getElementById("loginGate").classList.add("show");
   document.getElementById("loggedInAs").style.display = "none";
   document.getElementById("logoutBtn").style.display = "none";
@@ -803,6 +825,76 @@ function logoutManager() {
 document.getElementById("loginSubmitBtn").addEventListener("click", attemptLogin);
 document.getElementById("loginPinInput").addEventListener("keydown", (e) => {
   if (e.key === "Enter") attemptLogin();
+});
+
+/* ===================================================================
+   FORGOT PIN — self-service reset via email
+   =================================================================== */
+function showForgotPinPanel() {
+  document.getElementById("loginPanel").style.display = "none";
+  document.getElementById("forgotPinPanel").style.display = "block";
+  document.getElementById("forgotPinMsg").textContent = "";
+  document.getElementById("forgotPinEmail").value = "";
+}
+
+function showLoginPanel() {
+  document.getElementById("forgotPinPanel").style.display = "none";
+  document.getElementById("loginPanel").style.display = "block";
+}
+
+function generateRandomPin() {
+  return String(Math.floor(1000 + Math.random() * 9000)); // 4-digit
+}
+
+function requestPinReset() {
+  const emailInput = document.getElementById("forgotPinEmail");
+  const msgEl = document.getElementById("forgotPinMsg");
+  const email = emailInput.value.trim().toLowerCase();
+  const btn = document.getElementById("forgotPinSubmitBtn");
+
+  if (!email) { msgEl.style.color = "var(--red)"; msgEl.textContent = "Enter your email"; return; }
+
+  btn.disabled = true;
+  msgEl.style.color = "var(--slate)";
+  msgEl.textContent = "Checking…";
+
+  const match = Object.entries(zoneManagersData).find(([key, entry]) => {
+    return entry && typeof entry === "object" && entry.email && entry.email.trim().toLowerCase() === email;
+  });
+
+  // Deliberately vague either way — don't reveal whether an email is on file.
+  const genericMsg = "If that email is on file, a new PIN has been sent to it.";
+
+  if (!match) {
+    msgEl.style.color = "var(--slate)";
+    msgEl.textContent = genericMsg;
+    btn.disabled = false;
+    return;
+  }
+
+  const [key, entry] = match;
+  const newPin = generateRandomPin();
+
+  saveManagerRecord(key, { pin: newPin });
+
+  if (window.emailjs && !EMAILJS_PIN_RESET_TEMPLATE_ID.startsWith("YOUR-")) {
+    emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_PIN_RESET_TEMPLATE_ID, {
+      to_email: entry.email,
+      manager_name: entry.name,
+      new_pin: newPin
+    }).catch(err => console.error("PIN reset email failed", err));
+  } else {
+    console.warn("PIN reset EmailJS template not configured — PIN was reset but no email was sent.");
+  }
+
+  msgEl.style.color = "var(--green)";
+  msgEl.textContent = genericMsg;
+  btn.disabled = false;
+}
+
+document.getElementById("forgotPinSubmitBtn").addEventListener("click", requestPinReset);
+document.getElementById("forgotPinEmail").addEventListener("keydown", (e) => {
+  if (e.key === "Enter") requestPinReset();
 });
 
 /* ===================================================================
@@ -1412,26 +1504,48 @@ function safeZmKey(name) {
   return name.replace(/[.#$/\[\]]/g, "_");
 }
 
+function managerFields(entry) {
+  if (entry && typeof entry === "object") {
+    return {
+      name: entry.name || "",
+      pin: entry.pin || "",
+      role: entry.role || "manager",
+      phone: entry.phone || "",
+      email: entry.email || ""
+    };
+  }
+  return { name: entry || "", pin: "", role: "manager", phone: "", email: "" };
+}
+
+function saveManagerRecord(key, overrides) {
+  const current = managerFields(zoneManagersData[key]);
+  const merged = Object.assign({}, current, overrides);
+  zmRef.child(key).set(merged);
+}
+
 function upsertZoneManagerName(name) {
   const key = safeZmKey(name);
-  const existing = zoneManagersData[key];
-  const pin = (existing && typeof existing === "object") ? existing.pin : "";
-  const role = (existing && typeof existing === "object" && existing.role) ? existing.role : "manager";
-  zmRef.child(key).set({ name, pin: pin || "", role });
+  saveManagerRecord(key, { name });
 }
 
 function addNewZoneManager() {
   const nameInput = document.getElementById("newZmName");
+  const emailInput = document.getElementById("newZmEmail");
+  const phoneInput = document.getElementById("newZmPhone");
   const pinInput = document.getElementById("newZmPin");
   const roleInput = document.getElementById("newZmRole");
   const name = nameInput.value.trim();
+  const email = emailInput.value.trim();
+  const phone = phoneInput.value.trim();
   const pin = pinInput.value.trim();
   const role = roleInput.value;
   if (!name) { toast("Enter a name first", "err"); return; }
   if (!pin || pin.length < 4) { toast("Enter a PIN of at least 4 digits", "err"); return; }
   if (!zmRef) { toast("Firebase not configured yet", "err"); return; }
-  zmRef.child(safeZmKey(name)).set({ name, pin, role });
+  zmRef.child(safeZmKey(name)).set({ name, pin, role, phone, email });
   nameInput.value = "";
+  emailInput.value = "";
+  phoneInput.value = "";
   pinInput.value = "";
   roleInput.value = "manager";
   toast("Zone Manager added", "ok");
@@ -1442,46 +1556,58 @@ function renderManagerPinTable() {
   if (!body) return;
   const keys = Object.keys(zoneManagersData);
   if (!keys.length) {
-    body.innerHTML = `<tr><td colspan="4" style="text-align:center; color:var(--slate);">No zone managers added yet.</td></tr>`;
+    body.innerHTML = `<tr><td colspan="6" style="text-align:center; color:var(--slate);">No zone managers added yet.</td></tr>`;
     return;
   }
   body.innerHTML = keys.map(key => {
-    const entry = zoneManagersData[key];
-    const name = zmName(entry);
-    const pin = (entry && typeof entry === "object") ? (entry.pin || "—not set—") : "—not set—";
-    const role = (entry && typeof entry === "object" && entry.role) ? entry.role : "manager";
-    const roleLabel = role === "admin" ? `<span class="tag" style="background:var(--copper); color:#fff;">Admin</span>` : `<span class="tag">Zone Manager</span>`;
+    const f = managerFields(zoneManagersData[key]);
+    const roleLabel = f.role === "admin" ? `<span class="tag" style="background:var(--copper); color:#fff;">Admin</span>` : `<span class="tag">Zone Manager</span>`;
     return `
       <tr>
-        <td>${escapeHtml(name)}</td>
-        <td class="mono">${escapeHtml(pin)}</td>
+        <td>${escapeHtml(f.name)}</td>
+        <td class="mono">${escapeHtml(f.email || "—not set—")}</td>
+        <td class="mono">${escapeHtml(f.phone || "—not set—")}</td>
+        <td class="mono">${escapeHtml(f.pin || "—not set—")}</td>
         <td>${roleLabel}</td>
         <td style="display:flex; gap:6px; flex-wrap:wrap;">
+          <button class="btn btn-ghost btn-sm" onclick="editManagerEmail('${key}')">Edit Email</button>
+          <button class="btn btn-ghost btn-sm" onclick="editManagerPhone('${key}')">Edit Phone</button>
           <button class="btn btn-ghost btn-sm" onclick="resetManagerPin('${key}')">Change PIN</button>
-          <button class="btn btn-ghost btn-sm" onclick="toggleManagerRole('${key}')">${role === "admin" ? "Make Manager" : "Make Admin"}</button>
+          <button class="btn btn-ghost btn-sm" onclick="toggleManagerRole('${key}')">${f.role === "admin" ? "Make Manager" : "Make Admin"}</button>
         </td>
       </tr>`;
   }).join("");
 }
 
+function editManagerEmail(key) {
+  const f = managerFields(zoneManagersData[key]);
+  const newEmail = prompt("Enter email for " + f.name + ":", f.email);
+  if (newEmail === null) return;
+  saveManagerRecord(key, { email: newEmail.trim() });
+  toast("Email updated", "ok");
+}
+
+function editManagerPhone(key) {
+  const f = managerFields(zoneManagersData[key]);
+  const newPhone = prompt("Enter mobile number for " + f.name + " (e.g. +15551234567):", f.phone);
+  if (newPhone === null) return;
+  saveManagerRecord(key, { phone: newPhone.trim() });
+  toast("Phone number updated", "ok");
+}
+
 function toggleManagerRole(key) {
-  const entry = zoneManagersData[key];
-  const currentRole = (entry && typeof entry === "object" && entry.role) ? entry.role : "manager";
-  const newRole = currentRole === "admin" ? "manager" : "admin";
-  const name = zmName(entry);
-  const pin = (entry && typeof entry === "object") ? entry.pin : "";
-  zmRef.child(key).set({ name, pin: pin || "", role: newRole });
-  toast(`${name} is now ${newRole === "admin" ? "an Admin" : "a Zone Manager"}`, "ok");
+  const f = managerFields(zoneManagersData[key]);
+  const newRole = f.role === "admin" ? "manager" : "admin";
+  saveManagerRecord(key, { role: newRole });
+  toast(`${f.name} is now ${newRole === "admin" ? "an Admin" : "a Zone Manager"}`, "ok");
 }
 
 function resetManagerPin(key) {
-  const entry = zoneManagersData[key];
-  const currentName = zmName(entry);
-  const currentRole = (entry && typeof entry === "object" && entry.role) ? entry.role : "manager";
-  const newPin = prompt("Enter new PIN (4+ digits) for " + currentName + ":");
+  const f = managerFields(zoneManagersData[key]);
+  const newPin = prompt("Enter new PIN (4+ digits) for " + f.name + ":");
   if (!newPin) return;
   if (newPin.trim().length < 4) { toast("PIN must be at least 4 digits", "err"); return; }
-  zmRef.child(key).set({ name: currentName, pin: newPin.trim(), role: currentRole });
+  saveManagerRecord(key, { pin: newPin.trim() });
   toast("PIN updated", "ok");
 }
 
