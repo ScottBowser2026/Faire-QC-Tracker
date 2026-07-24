@@ -1095,6 +1095,7 @@ if (viewCheckId && viewFacilityId && db) {
           <tr><td><b>Temp</b></td><td class="mono">${r.temp !== null && r.temp !== undefined ? r.temp + "°F" : "—"}</td></tr>
           <tr><td><b>Status</b></td><td><span class="badge ${r.status}">${r.status === "na" ? "LOGGED" : (r.status||"").toUpperCase()}</span></td></tr>
           <tr><td><b>Notes</b></td><td>${escapeHtml(r.notes || "—")}</td></tr>
+          ${r.status === "fail" ? `<tr><td><b>Resolution</b></td><td>${r.resolved ? `<span class="badge pass">RESOLVED</span> by ${escapeHtml(r.resolvedBy||"")}${r.resolutionNotes ? ": " + escapeHtml(r.resolutionNotes) : ""}` : `<span class="badge fail">UNRESOLVED</span>`}</td></tr>` : ""}
         </tbody>
       </table>`;
   }).catch(err => {
@@ -1657,7 +1658,7 @@ document.getElementById("historyBoothFilter").addEventListener("change", renderH
 function renderHistory() {
   const wrap = document.getElementById("historyTableWrap");
   const filterBooth = document.getElementById("historyBoothFilter").value;
-  let rows = Object.values(checksData || {});
+  let rows = Object.entries(checksData || {}).map(([id, r]) => Object.assign({ _id: id }, r));
   if (filterBooth) rows = rows.filter(r => r.boothId === filterBooth);
   rows.sort((a,b) => (b.submittedAt||0) - (a.submittedAt||0));
 
@@ -1669,7 +1670,7 @@ function renderHistory() {
   wrap.innerHTML = `
     <table class="log">
       <thead><tr>
-        <th>Time</th><th>Booth</th><th>Item</th><th>Zone Mgr</th><th>Checked By</th><th>Temp</th><th>Status</th><th>Photo</th><th>Notes</th>
+        <th>Time</th><th>Booth</th><th>Item</th><th>Zone Mgr</th><th>Checked By</th><th>Temp</th><th>Status</th><th>Photo</th><th>Notes</th><th>Resolution</th>
       </tr></thead>
       <tbody>
         ${rows.map(r => `
@@ -1683,9 +1684,38 @@ function renderHistory() {
             <td><span class="badge ${r.status}">${r.status === "na" ? "LOGGED" : r.status.toUpperCase()}</span></td>
             <td>${r.photoUrl ? `<a href="${r.photoUrl}" target="_blank" rel="noopener"><img src="${r.photoUrl}" style="width:44px;height:44px;object-fit:cover;border-radius:5px;border:1px solid var(--line);"></a>` : "—"}</td>
             <td>${escapeHtml(r.notes || "")}</td>
+            <td>${renderResolutionCell(r)}</td>
           </tr>`).join("")}
       </tbody>
     </table>`;
+}
+
+function renderResolutionCell(r) {
+  if (r.status !== "fail") return `<span class="temp-hint">—</span>`;
+  if (r.resolved) {
+    const who = escapeHtml(r.resolvedBy || "someone");
+    const note = r.resolutionNotes ? `: ${escapeHtml(r.resolutionNotes)}` : "";
+    return `<span class="badge pass" style="display:inline-block; margin-bottom:3px;">RESOLVED</span><div class="temp-hint" style="font-size:.72rem;">by ${who}${note}</div>`;
+  }
+  if (!loggedInManager) return `<span class="badge fail">UNRESOLVED</span>`;
+  return `
+    <button class="btn btn-danger btn-sm" onclick="resolveCheck('${r._id}')">Clear / Resolve</button>
+  `;
+}
+
+function resolveCheck(checkId) {
+  if (!loggedInManager) { toast("Please log in first", "err"); return; }
+  const notes = prompt("What corrective action was taken? (e.g. 'Product discarded, new batch reheated to 165°F')");
+  if (notes === null) return;
+  checksRef().child(checkId).update({
+    resolved: true,
+    resolvedBy: loggedInManager.name,
+    resolvedByRole: loggedInManager.role,
+    resolvedAt: Date.now(),
+    resolutionNotes: notes.trim()
+  }).then(() => {
+    toast("Marked as resolved", "ok");
+  });
 }
 
 /* ===================================================================
