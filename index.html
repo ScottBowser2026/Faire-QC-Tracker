@@ -615,7 +615,10 @@
       <div class="breadcrumb"><button onclick="showBoothList()">← All Booths</button></div>
       <div class="section-head">
         <h2 id="boothDetailName">Booth</h2>
-        <button class="btn btn-primary btn-sm" onclick="openItemModal()">+ Add Menu Item</button>
+        <div style="display:flex; gap:8px;">
+          <button class="btn btn-ghost btn-sm" onclick="editBoothName()">Edit Name</button>
+          <button class="btn btn-primary btn-sm" onclick="openItemModal()">+ Add Menu Item</button>
+        </div>
       </div>
 
       <div class="zm-box">
@@ -1208,6 +1211,7 @@ function renderBoothGrid() {
           <div style="font-size:.78rem; color:var(--slate); margin-bottom:12px;">${itemCount} menu item${itemCount===1?"":"s"}</div>
           <div class="btn-row">
             <button class="btn btn-secondary btn-sm" onclick="showBoothDetail('${id}')">Manage Menu</button>
+            <button class="btn btn-ghost btn-sm" onclick="editBoothName('${id}')">Edit Name</button>
             <button class="btn btn-danger btn-sm" onclick="deleteBooth('${id}')">Delete</button>
           </div>
         </div>`;
@@ -1326,6 +1330,19 @@ function deleteBooth(id) {
   if (!confirm("Delete this booth and all its menu items? This can't be undone.")) return;
   boothsRef().child(id).remove();
   toast("Booth deleted");
+}
+
+function editBoothName(id) {
+  const boothId = id || activeBoothId;
+  if (!boothId) return;
+  const booth = boothsData[boothId];
+  if (!booth) return;
+  const newName = prompt("Rename booth:", booth.name || "");
+  if (newName === null) return;
+  const trimmed = newName.trim();
+  if (!trimmed) { toast("Booth name can't be empty", "err"); return; }
+  boothsRef().child(boothId).child("name").set(trimmed);
+  toast("Booth renamed", "ok");
 }
 
 /* ---------------- Zone Manager assignment ---------------- */
@@ -1867,9 +1884,25 @@ function renderFacilitiesTab() {
         <div class="zm" style="margin-bottom:12px;">ID: <b>${escapeHtml(id)}</b></div>
         <div class="btn-row">
           <button class="btn btn-secondary btn-sm" onclick="switchToFacilityFromTab('${id}')">Switch To</button>
+          <button class="btn btn-ghost btn-sm" onclick="renameFacility('${id}')">Rename</button>
         </div>
       </div>`;
   }).join("");
+}
+
+function renameFacility(id) {
+  const meta = facilityMetaData[id] || {};
+  const newName = prompt("Rename facility (display name only, id stays '" + id + "'):", meta.name || id);
+  if (newName === null) return;
+  const trimmed = newName.trim();
+  if (!trimmed) { toast("Facility name can't be empty", "err"); return; }
+  facilityMetaRef.child(id).child("name").set(trimmed).then(() => {
+    facilityMetaData[id] = Object.assign({}, meta, { name: trimmed });
+    renderFacilitySwitcher();
+    renderFacilitiesTab();
+    renderDashboard();
+    toast("Facility renamed", "ok");
+  });
 }
 
 function switchToFacilityFromTab(id) {
@@ -1926,12 +1959,23 @@ function renderSuperadminsTab() {
           <td class="mono">${escapeHtml(e.email || "—not set—")}</td>
           <td class="mono">${escapeHtml(e.phone || "—not set—")}</td>
           <td class="mono">${escapeHtml(e.pin || "—not set—")}</td>
-          <td>
+          <td style="display:flex; gap:6px; flex-wrap:wrap;">
+            <button class="btn btn-ghost btn-sm" onclick="editSuperadminField('${key}','name','Name')">Edit Name</button>
+            <button class="btn btn-ghost btn-sm" onclick="editSuperadminField('${key}','email','Email')">Edit Email</button>
+            <button class="btn btn-ghost btn-sm" onclick="editSuperadminField('${key}','phone','Phone')">Edit Phone</button>
             <button class="btn btn-ghost btn-sm" onclick="resetSuperadminPin('${key}')">Change PIN</button>
           </td>
         </tr>`;
     }).join("");
   });
+}
+
+function editSuperadminField(key, field, label) {
+  const e = superadminsData[key] || {};
+  const newVal = prompt(`Enter new ${label} for ${e.name || "this superadmin"}:`, e[field] || "");
+  if (newVal === null) return;
+  superadminsRef.child(key).update({ [field]: newVal.trim() });
+  toast(`${label} updated`, "ok");
 }
 
 function addNewSuperadmin() {
