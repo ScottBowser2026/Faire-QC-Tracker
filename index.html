@@ -395,6 +395,53 @@
   }
   table.log td{padding:9px 12px; border-bottom:1px solid var(--line); vertical-align:top;}
   table.log tr:last-child td{border-bottom:none;}
+
+  /* Check Log — stack into cards on narrow screens instead of a cramped table */
+  @media (max-width: 720px){
+    #historyTableWrap table.log thead{display:none;}
+    #historyTableWrap table.log, #historyTableWrap table.log tbody, #historyTableWrap table.log tr, #historyTableWrap table.log td{
+      display:block;
+      width:100%;
+    }
+    #historyTableWrap table.log{background:transparent;}
+    #historyTableWrap table.log tr{
+      background:var(--card);
+      border:1px solid var(--line);
+      border-radius:10px;
+      margin-bottom:12px;
+      padding:6px 4px;
+    }
+    #historyTableWrap table.log td{
+      border-bottom:none;
+      padding:6px 12px;
+      display:flex;
+      justify-content:space-between;
+      align-items:flex-start;
+      gap:12px;
+      text-align:right;
+    }
+    #historyTableWrap table.log td::before{
+      content: attr(data-label);
+      font-size:.68rem;
+      text-transform:uppercase;
+      letter-spacing:.06em;
+      font-weight:700;
+      color:var(--slate);
+      text-align:left;
+      flex:none;
+      padding-top:2px;
+    }
+    #historyTableWrap table.log td[data-label="Notes"],
+    #historyTableWrap table.log td[data-label="Resolution"]{
+      flex-direction:column;
+      text-align:left;
+    }
+    #historyTableWrap table.log td[data-label="Notes"]::before,
+    #historyTableWrap table.log td[data-label="Resolution"]::before{
+      padding-top:0;
+      margin-bottom:3px;
+    }
+  }
   .badge{
     padding:3px 9px;
     border-radius:20px;
@@ -1675,16 +1722,16 @@ function renderHistory() {
       <tbody>
         ${rows.map(r => `
           <tr>
-            <td class="mono">${escapeHtml(r.checkTime || "")}</td>
-            <td>${escapeHtml(r.boothName || "")}</td>
-            <td>${escapeHtml(r.itemName || "")}</td>
-            <td>${escapeHtml(r.zoneManager || "")}</td>
-            <td>${escapeHtml(r.checkedBy || "")}</td>
-            <td class="mono">${r.temp !== null && r.temp !== undefined ? r.temp + "°F" : "—"}</td>
-            <td><span class="badge ${r.status}">${r.status === "na" ? "LOGGED" : r.status.toUpperCase()}</span></td>
-            <td>${r.photoUrl ? `<a href="${r.photoUrl}" target="_blank" rel="noopener"><img src="${r.photoUrl}" style="width:44px;height:44px;object-fit:cover;border-radius:5px;border:1px solid var(--line);"></a>` : "—"}</td>
-            <td>${escapeHtml(r.notes || "")}</td>
-            <td>${renderResolutionCell(r)}</td>
+            <td class="mono" data-label="Time">${escapeHtml(r.checkTime || "")}</td>
+            <td data-label="Booth">${escapeHtml(r.boothName || "")}</td>
+            <td data-label="Item">${escapeHtml(r.itemName || "")}</td>
+            <td data-label="Zone Mgr">${escapeHtml(r.zoneManager || "")}</td>
+            <td data-label="Checked By">${escapeHtml(r.checkedBy || "")}</td>
+            <td class="mono" data-label="Temp">${r.temp !== null && r.temp !== undefined ? r.temp + "°F" : "—"}</td>
+            <td data-label="Status"><span class="badge ${r.status}">${r.status === "na" ? "LOGGED" : r.status.toUpperCase()}</span></td>
+            <td data-label="Photo">${r.photoUrl ? `<a href="${r.photoUrl}" target="_blank" rel="noopener"><img src="${r.photoUrl}" style="width:44px;height:44px;object-fit:cover;border-radius:5px;border:1px solid var(--line);"></a>` : "—"}</td>
+            <td data-label="Notes">${escapeHtml(r.notes || "")}</td>
+            <td data-label="Resolution">${renderResolutionCell(r)}</td>
           </tr>`).join("")}
       </tbody>
     </table>`;
