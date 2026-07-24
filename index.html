@@ -17,27 +17,34 @@
   =====================================================================
   SETUP NOTES (read before deploying)
   =====================================================================
-  1) FIREBASE — replace firebaseConfig below with your project's config.
-     This app expects a Realtime Database. It writes everything under
-     a top-level "qc" node, so it's safe to run in the SAME Firebase
-     project as Faire-Punch-List without colliding with that data.
+  MULTI-FACILITY ARCHITECTURE — this app now supports multiple
+  facilities (e.g. PARF, SRF, GAREF) from one shared deployment:
 
-  2) EMAILJS — replace EMAILJS_PUBLIC_KEY, EMAILJS_SERVICE_ID, and
-     EMAILJS_TEMPLATE_ID below. Create a free account at emailjs.com,
-     add an email service (Gmail/Outlook), and create a template with
-     these variable names (EmailJS lets you insert {{variable}} tags
-     into the subject/body):
-       {{booth_name}} {{zone_manager}} {{item_name}} {{checked_by}}
-       {{check_time}} {{temp_reading}} {{status}} {{notes}}
-     Point the template's "To Email" field at your fixed distro
-     address(es) — that's set in the EmailJS template itself, not here.
+    qc/superadmins/{key}                    — global, see everything
+    qc/facilityMeta/{facilityId}            — display name per facility
+    qc/facilityManagers/{facilityId}/{key}  — admins & zone managers,
+                                               scoped to one facility
+    qc/facilities/{facilityId}/booths       — scoped to one facility
+    qc/facilities/{facilityId}/checks       — scoped to one facility
+
+  A PIN determines who you are AND which facility you belong to.
+  Superadmins aren't tied to any single facility — they get a
+  switcher in the header to move between them.
+
+  BOOTSTRAPPING YOUR FIRST SUPERADMIN: since the app can't create its
+  own first login, add yourself directly in the Firebase console under
+  qc/superadmins/{yourkey}: { name, pin, email, phone }. After that,
+  everything else (new facilities, new admins, new superadmins) can be
+  added through the app itself.
+
+  1) FIREBASE — replace firebaseConfig below with your project's config.
+
+  2) EMAILJS — replace EMAILJS_PUBLIC_KEY, EMAILJS_SERVICE_ID,
+     EMAILJS_TEMPLATE_ID, and EMAILJS_PIN_RESET_TEMPLATE_ID below.
 
   3) NETWORK NOTE — if this is used on a venue wifi/network that blocks
-     Google's CDN (this happened with the punch list tracker), the
-     fix is to self-host the Firebase compat SDK files in this repo
-     and change the <script src> tags below to load from the same
-     origin instead of gstatic.com. Ask Claude to do this if the
-     green "Live" indicator doesn't appear on site.
+     Google's CDN, self-host the Firebase compat SDK files and change
+     the <script src> tags below to load from the same origin.
   =====================================================================
 -->
 
@@ -179,6 +186,15 @@
   }
   .booth-card .zm b{color:var(--ink);}
   .booth-card .btn-row{display:flex; gap:8px; flex-wrap:wrap;}
+
+  .dash-stats{display:flex; gap:14px; margin:10px 0 12px; flex-wrap:wrap;}
+  .dash-stat{flex:1; min-width:70px; text-align:center;}
+  .dash-stat .num{font-family:'Zilla Slab',serif; font-size:1.6rem; font-weight:700; color:var(--ink); line-height:1;}
+  .dash-stat .num.pass{color:var(--green);}
+  .dash-stat .num.fail{color:var(--red);}
+  .dash-stat .num.overdue{color:var(--copper);}
+  .dash-stat .lbl{font-size:.68rem; text-transform:uppercase; letter-spacing:.06em; color:var(--slate); margin-top:2px;}
+  .dash-overdue-list{font-size:.78rem; color:var(--copper-dark); margin-top:6px; line-height:1.5;}
 
   .add-booth-card{
     border:2px dashed var(--line);
@@ -459,8 +475,8 @@
 <div class="modal-overlay show" id="loginGate" style="z-index:300; background:var(--ink);">
   <div class="modal-box" style="max-width:340px; text-align:center;">
     <div id="loginPanel">
-      <h3 style="margin-bottom:2px;">Zone Manager Login</h3>
-      <div class="temp-hint" style="margin-bottom:16px;">Enter your PIN to run checks</div>
+      <h3 style="margin-bottom:2px;">PRFQC Login</h3>
+      <div class="temp-hint" style="margin-bottom:16px;">Enter your PIN to sign in</div>
       <div class="field">
         <input type="password" inputmode="numeric" id="loginPinInput" placeholder="PIN" style="text-align:center; font-size:1.3rem; letter-spacing:.2em;" maxlength="8">
       </div>
@@ -498,6 +514,9 @@
 <header>
   <h1><span class="crest">Q</span> PRFQC</h1>
   <div style="display:flex; align-items:center; gap:8px;">
+    <span id="facilitySwitcherWrap" style="display:none;">
+      <select id="facilitySwitcherSelect" style="padding:6px 8px; border-radius:6px; border:1px solid rgba(255,255,255,0.25); background:var(--ink-soft); color:var(--parchment); font-size:.85rem;"></select>
+    </span>
     <span id="loggedInAs" class="status-pill" style="display:none;"></span>
     <button id="logoutBtn" class="btn btn-ghost btn-sm" style="display:none; color:var(--parchment); border-color:rgba(255,255,255,0.3);" onclick="logoutManager()">Log Out</button>
     <span id="connStatus" class="status-pill offline">Connecting…</span>
@@ -509,6 +528,9 @@
   <button data-tab="boothsView" style="display:none;">Booths &amp; Menus</button>
   <button data-tab="zoneManagersView" style="display:none;">Zone Managers</button>
   <button data-tab="historyView">Check Log</button>
+  <button data-tab="facilitiesView" style="display:none;">Facilities</button>
+  <button data-tab="superadminsView" style="display:none;">Superadmins</button>
+  <button data-tab="dashboardView" style="display:none;">Dashboard</button>
 </nav>
 
 <main>
@@ -656,6 +678,48 @@
     <div id="historyTableWrap"></div>
   </section>
 
+  <!-- ===================== FACILITIES VIEW (Superadmin only) ===================== -->
+  <section id="facilitiesView" class="view">
+    <div class="section-head">
+      <h2>Facilities</h2>
+    </div>
+    <div class="zm-box">
+      <span class="label">Add New Facility</span>
+      <input type="text" id="newFacilityId" placeholder="short id, e.g. srf" style="max-width:140px;">
+      <input type="text" id="newFacilityName" placeholder="Display name, e.g. SRF" style="max-width:180px;">
+      <button class="btn btn-primary btn-sm" onclick="addNewFacility()">Add Facility</button>
+    </div>
+    <div class="booth-grid" id="facilitiesGrid"></div>
+  </section>
+
+  <!-- ===================== SUPERADMINS VIEW (Superadmin only) ===================== -->
+  <section id="superadminsView" class="view">
+    <div class="section-head">
+      <h2>Superadmins</h2>
+    </div>
+    <div class="zm-box">
+      <span class="label">Add New Superadmin</span>
+      <input type="text" id="newSuName" placeholder="e.g. Scott Bowser" style="max-width:150px;">
+      <input type="email" id="newSuEmail" placeholder="Email" style="max-width:160px;">
+      <input type="tel" id="newSuPhone" placeholder="Mobile #" style="max-width:120px;">
+      <input type="password" inputmode="numeric" id="newSuPin" placeholder="4-digit PIN" maxlength="8" style="max-width:100px;">
+      <button class="btn btn-primary btn-sm" onclick="addNewSuperadmin()">Add</button>
+    </div>
+    <table class="log" id="superadminsTable">
+      <thead><tr><th>Name</th><th>Email</th><th>Phone</th><th>PIN</th><th></th></tr></thead>
+      <tbody id="superadminsBody"></tbody>
+    </table>
+  </section>
+
+  <!-- ===================== DASHBOARD VIEW (Superadmin only) ===================== -->
+  <section id="dashboardView" class="view">
+    <div class="section-head">
+      <h2>All-Venues Dashboard</h2>
+      <span class="temp-hint">Live — updates automatically</span>
+    </div>
+    <div class="booth-grid" id="dashboardGrid"></div>
+  </section>
+
 </main>
 
 <footer>PRFQC · data synced live via Firebase</footer>
@@ -733,7 +797,7 @@ const firebaseConfig = {
 const EMAILJS_PUBLIC_KEY  = "sB7w0MyBj_u6ayu_0";
 const EMAILJS_SERVICE_ID  = "service_inri5q5";
 const EMAILJS_TEMPLATE_ID = "template_4oo6zn3";
-const EMAILJS_PIN_RESET_TEMPLATE_ID = "template_ioffeqn";
+const EMAILJS_PIN_RESET_TEMPLATE_ID = "YOUR-PIN-RESET-TEMPLATE-ID";
 
 let firebaseReady = false;
 try {
@@ -745,15 +809,29 @@ try {
 }
 
 const db = firebaseReady ? firebase.database() : null;
-const boothsRef = db ? db.ref("qc/booths") : null;
-const checksRef = db ? db.ref("qc/checks") : null;
-const zmRef = db ? db.ref("qc/zoneManagers") : null;
+const superadminsRef = db ? db.ref("qc/superadmins") : null;
+const facilityMetaRef = db ? db.ref("qc/facilityMeta") : null;
+
+// These are FUNCTIONS (not fixed refs) — they always point at whichever
+// facility is currently active, so every part of the app that reads
+// booths/checks/managers automatically stays scoped to one facility.
+function boothsRef() { return (db && currentFacilityId) ? db.ref("qc/facilities/" + currentFacilityId + "/booths") : null; }
+function checksRef() { return (db && currentFacilityId) ? db.ref("qc/facilities/" + currentFacilityId + "/checks") : null; }
+function zmRef() { return (db && currentFacilityId) ? db.ref("qc/facilityManagers/" + currentFacilityId) : null; }
+
+let currentFacilityId = null;
+let facilityMetaData = {};
+let isSuperadmin = false;
+
+let activeBoothsListener = null;
+let activeZmListener = null;
+let activeChecksListener = null;
 
 let boothsData = {};
 let zoneManagersData = {};
 let checksData = {};
 let activeBoothId = null;
-let loggedInManager = null; // { key, name, pin }
+let loggedInManager = null; // { key, name, pin, role, facilityId }
 
 /* ===================================================================
    LOGIN GATE — PIN-based Zone Manager login
@@ -762,23 +840,67 @@ function attemptLogin() {
   const pin = document.getElementById("loginPinInput").value.trim();
   const errEl = document.getElementById("loginError");
   if (!pin) { errEl.textContent = "Enter your PIN"; return; }
+  if (!db) { errEl.textContent = "Not connected yet — try again in a moment."; return; }
+  errEl.textContent = "Checking…";
 
-  const match = Object.entries(zoneManagersData).find(([key, entry]) => {
-    return entry && typeof entry === "object" && entry.pin !== undefined && entry.pin !== null && String(entry.pin) === pin;
+  superadminsRef.once("value").then(snap => {
+    const supers = snap.val() || {};
+    const suMatch = Object.entries(supers).find(([k, e]) =>
+      e && e.pin !== undefined && e.pin !== null && String(e.pin) === pin
+    );
+    if (suMatch) {
+      return loginAsSuperadmin(suMatch[0], suMatch[1]);
+    }
+
+    return db.ref("qc/facilityManagers").once("value").then(facSnap => {
+      const allManagers = facSnap.val() || {};
+      for (const [fid, managers] of Object.entries(allManagers)) {
+        const match = Object.entries(managers || {}).find(([k, e]) =>
+          e && e.pin !== undefined && e.pin !== null && String(e.pin) === pin
+        );
+        if (match) {
+          loginAsFacilityUser(fid, match[0], match[1]);
+          return;
+        }
+      }
+      errEl.textContent = "PIN not recognized. Try again or see your F&B Director.";
+    });
+  }).catch(err => {
+    console.error(err);
+    errEl.textContent = "Login failed — check your connection and try again.";
   });
+}
 
-  if (!match) {
-    errEl.textContent = "PIN not recognized. Try again or see your F&B Director.";
-    return;
-  }
+function loginAsFacilityUser(facilityId, key, entry) {
+  currentFacilityId = facilityId;
+  isSuperadmin = false;
+  loggedInManager = { key, name: entry.name, pin: entry.pin, role: entry.role || "manager", facilityId };
+  facilityMetaRef.child(facilityId).once("value").then(snap => {
+    facilityMetaData = {};
+    facilityMetaData[facilityId] = snap.val() || { name: facilityId };
+    finishLogin();
+  });
+}
 
-  const [key, entry] = match;
-  loggedInManager = { key, name: entry.name, pin: entry.pin, role: entry.role || "manager" };
+function loginAsSuperadmin(key, entry) {
+  isSuperadmin = true;
+  loggedInManager = { key, name: entry.name, pin: entry.pin, role: "superadmin" };
+  facilityMetaRef.once("value").then(snap => {
+    facilityMetaData = snap.val() || {};
+    const ids = Object.keys(facilityMetaData);
+    currentFacilityId = ids.length ? ids[0] : null;
+    finishLogin();
+  });
+}
+
+function finishLogin() {
+  document.getElementById("loginPinInput").value = "";
+  document.getElementById("loginError").textContent = "";
   document.getElementById("loginGate").classList.remove("show");
   const badge = document.getElementById("loggedInAs");
   badge.style.display = "inline-block";
   badge.className = "status-pill live";
-  const roleTag = loggedInManager.role === "admin" ? " (Admin)" : "";
+  const roleTag = loggedInManager.role === "admin" ? " (Admin)" : loggedInManager.role === "superadmin" ? " (Superadmin)" : "";
   badge.textContent = `${loggedInManager.name}${roleTag}`;
   document.getElementById("logoutBtn").style.display = "inline-flex";
 
@@ -789,7 +911,12 @@ function attemptLogin() {
 
   const boothsTab = document.querySelector('nav.tabs button[data-tab="boothsView"]');
   const zmTab = document.querySelector('nav.tabs button[data-tab="zoneManagersView"]');
-  if (loggedInManager.role === "admin") {
+  const facilitiesTab = document.querySelector('nav.tabs button[data-tab="facilitiesView"]');
+  const superadminsTab = document.querySelector('nav.tabs button[data-tab="superadminsView"]');
+  const dashboardTab = document.querySelector('nav.tabs button[data-tab="dashboardView"]');
+  const facSwitchWrap = document.getElementById("facilitySwitcherWrap");
+
+  if (loggedInManager.role === "admin" || loggedInManager.role === "superadmin") {
     boothsTab.style.display = "";
     zmTab.style.display = "";
   } else {
@@ -797,18 +924,41 @@ function attemptLogin() {
     zmTab.style.display = "none";
   }
 
+  if (isSuperadmin) {
+    facilitiesTab.style.display = "";
+    superadminsTab.style.display = "";
+    dashboardTab.style.display = "";
+    facSwitchWrap.style.display = "inline-flex";
+    renderFacilitySwitcher();
+    renderFacilitiesTab();
+    renderSuperadminsTab();
+    attachDashboardListeners();
+  } else {
+    facilitiesTab.style.display = "none";
+    superadminsTab.style.display = "none";
+    dashboardTab.style.display = "none";
+    facSwitchWrap.style.display = "none";
+  }
+
+  attachFacilityListeners();
   populateBoothSelect();
   toast(`Welcome, ${loggedInManager.name}`, "ok");
 }
 
 function logoutManager() {
   loggedInManager = null;
+  isSuperadmin = false;
+  currentFacilityId = null;
+  facilityMetaData = {};
+  detachFacilityListeners();
+  detachDashboardListeners();
   document.getElementById("loginPinInput").value = "";
   document.getElementById("loginError").textContent = "";
   showLoginPanel();
   document.getElementById("loginGate").classList.add("show");
   document.getElementById("loggedInAs").style.display = "none";
   document.getElementById("logoutBtn").style.display = "none";
+  document.getElementById("facilitySwitcherWrap").style.display = "none";
   const cb = document.getElementById("qcCheckedBy");
   cb.value = "";
   cb.readOnly = false;
@@ -816,6 +966,9 @@ function logoutManager() {
 
   document.querySelector('nav.tabs button[data-tab="boothsView"]').style.display = "none";
   document.querySelector('nav.tabs button[data-tab="zoneManagersView"]').style.display = "none";
+  document.querySelector('nav.tabs button[data-tab="facilitiesView"]').style.display = "none";
+  document.querySelector('nav.tabs button[data-tab="superadminsView"]').style.display = "none";
+  document.querySelector('nav.tabs button[data-tab="dashboardView"]').style.display = "none";
   document.querySelectorAll("nav.tabs button").forEach(b => b.classList.remove("active"));
   document.querySelectorAll(".view").forEach(v => v.classList.remove("active"));
   document.querySelector('nav.tabs button[data-tab="checkView"]').classList.add("active");
@@ -853,43 +1006,55 @@ function requestPinReset() {
   const btn = document.getElementById("forgotPinSubmitBtn");
 
   if (!email) { msgEl.style.color = "var(--red)"; msgEl.textContent = "Enter your email"; return; }
+  if (!db) { msgEl.style.color = "var(--red)"; msgEl.textContent = "Not connected yet — try again in a moment."; return; }
 
   btn.disabled = true;
   msgEl.style.color = "var(--slate)";
   msgEl.textContent = "Checking…";
 
-  const match = Object.entries(zoneManagersData).find(([key, entry]) => {
-    return entry && typeof entry === "object" && entry.email && entry.email.trim().toLowerCase() === email;
-  });
-
   // Deliberately vague either way — don't reveal whether an email is on file.
   const genericMsg = "If that email is on file, a new PIN has been sent to it.";
 
-  if (!match) {
-    msgEl.style.color = "var(--slate)";
+  db.ref("qc/facilityManagers").once("value").then(snap => {
+    const allManagers = snap.val() || {};
+    let found = null; // { facilityId, key, entry }
+
+    for (const [fid, managers] of Object.entries(allManagers)) {
+      const match = Object.entries(managers || {}).find(([k, e]) =>
+        e && e.email && e.email.trim().toLowerCase() === email
+      );
+      if (match) { found = { facilityId: fid, key: match[0], entry: match[1] }; break; }
+    }
+
+    if (!found) {
+      msgEl.style.color = "var(--slate)";
+      msgEl.textContent = genericMsg;
+      btn.disabled = false;
+      return;
+    }
+
+    const newPin = generateRandomPin();
+    db.ref("qc/facilityManagers/" + found.facilityId + "/" + found.key).update({ pin: newPin });
+
+    if (window.emailjs && !EMAILJS_PIN_RESET_TEMPLATE_ID.startsWith("YOUR-")) {
+      emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_PIN_RESET_TEMPLATE_ID, {
+        to_email: found.entry.email,
+        manager_name: found.entry.name,
+        new_pin: newPin
+      }).catch(err => console.error("PIN reset email failed", err));
+    } else {
+      console.warn("PIN reset EmailJS template not configured — PIN was reset but no email was sent.");
+    }
+
+    msgEl.style.color = "var(--green)";
     msgEl.textContent = genericMsg;
     btn.disabled = false;
-    return;
-  }
-
-  const [key, entry] = match;
-  const newPin = generateRandomPin();
-
-  saveManagerRecord(key, { pin: newPin });
-
-  if (window.emailjs && !EMAILJS_PIN_RESET_TEMPLATE_ID.startsWith("YOUR-")) {
-    emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_PIN_RESET_TEMPLATE_ID, {
-      to_email: entry.email,
-      manager_name: entry.name,
-      new_pin: newPin
-    }).catch(err => console.error("PIN reset email failed", err));
-  } else {
-    console.warn("PIN reset EmailJS template not configured — PIN was reset but no email was sent.");
-  }
-
-  msgEl.style.color = "var(--green)";
-  msgEl.textContent = genericMsg;
-  btn.disabled = false;
+  }).catch(err => {
+    console.error(err);
+    msgEl.style.color = "var(--red)";
+    msgEl.textContent = "Something went wrong — try again.";
+    btn.disabled = false;
+  });
 }
 
 document.getElementById("forgotPinSubmitBtn").addEventListener("click", requestPinReset);
@@ -902,12 +1067,13 @@ document.getElementById("forgotPinEmail").addEventListener("keydown", (e) => {
    =================================================================== */
 const urlParams = new URLSearchParams(window.location.search);
 const viewCheckId = urlParams.get("check");
+const viewFacilityId = urlParams.get("facility");
 
-if (viewCheckId && db) {
+if (viewCheckId && viewFacilityId && db) {
   document.getElementById("loginGate").classList.remove("show");
   const overlay = document.getElementById("checkViewerOverlay");
   overlay.classList.add("show");
-  db.ref("qc/checks/" + viewCheckId).once("value").then(snap => {
+  db.ref("qc/facilities/" + viewFacilityId + "/checks/" + viewCheckId).once("value").then(snap => {
     const r = snap.val();
     const content = document.getElementById("checkViewerContent");
     if (!r) {
@@ -970,31 +1136,60 @@ function closeModal(id) { document.getElementById(id).classList.remove("show"); 
 function openModal(id) { document.getElementById(id).classList.add("show"); }
 
 /* ===================================================================
-   BOOTHS — live sync
+   BOOTHS / MANAGERS / CHECKS — attach & detach per active facility
    =================================================================== */
-if (boothsRef) {
-  boothsRef.on("value", (snap) => {
-    boothsData = snap.val() || {};
-    renderBoothGrid();
-    populateBoothSelect();
-    if (activeBoothId) renderBoothDetail(activeBoothId);
-    populateHistoryFilter();
-    renderZmAssignTable();
-  });
+function attachFacilityListeners() {
+  detachFacilityListeners();
+
+  const br = boothsRef();
+  if (br) {
+    br.on("value", (snap) => {
+      boothsData = snap.val() || {};
+      renderBoothGrid();
+      populateBoothSelect();
+      if (activeBoothId) renderBoothDetail(activeBoothId);
+      populateHistoryFilter();
+      renderZmAssignTable();
+    });
+    activeBoothsListener = br;
+  }
+
+  const zr = zmRef();
+  if (zr) {
+    zr.on("value", (snap) => {
+      zoneManagersData = snap.val() || {};
+      populateZmSelect();
+      renderZmAssignTable();
+      renderManagerPinTable();
+    });
+    activeZmListener = zr;
+  }
+
+  const cr = checksRef();
+  if (cr) {
+    cr.limitToLast(500).on("value", (snap) => {
+      checksData = snap.val() || {};
+      renderHistory();
+    });
+    activeChecksListener = cr;
+  }
 }
-if (zmRef) {
-  zmRef.on("value", (snap) => {
-    zoneManagersData = snap.val() || {};
-    populateZmSelect();
-    renderZmAssignTable();
-    renderManagerPinTable();
-  });
-}
-if (checksRef) {
-  checksRef.limitToLast(500).on("value", (snap) => {
-    checksData = snap.val() || {};
-    renderHistory();
-  });
+
+function detachFacilityListeners() {
+  if (activeBoothsListener) activeBoothsListener.off();
+  if (activeZmListener) activeZmListener.off();
+  if (activeChecksListener) activeChecksListener.off();
+  activeBoothsListener = null;
+  activeZmListener = null;
+  activeChecksListener = null;
+  boothsData = {};
+  zoneManagersData = {};
+  checksData = {};
+  renderBoothGrid();
+  populateHistoryFilter();
+  renderZmAssignTable();
+  renderManagerPinTable();
+  renderHistory();
 }
 
 function renderBoothGrid() {
@@ -1119,17 +1314,17 @@ function saveBooth() {
   const name = document.getElementById("boothNameInput").value.trim();
   const zm = document.getElementById("boothZmInput").value.trim();
   if (!name) { toast("Enter a booth name", "err"); return; }
-  if (!boothsRef) { toast("Firebase not configured yet", "err"); return; }
-  const newRef = boothsRef.push();
+  if (!boothsRef()) { toast("Firebase not configured yet", "err"); return; }
+  const newRef = boothsRef().push();
   newRef.set({ name, zoneManager: zm || "", menuItems: {} });
-  if (zm && zmRef) upsertZoneManagerName(zm);
+  if (zm && zmRef()) upsertZoneManagerName(zm);
   closeModal("boothModalOverlay");
   toast("Booth added", "ok");
 }
 
 function deleteBooth(id) {
   if (!confirm("Delete this booth and all its menu items? This can't be undone.")) return;
-  boothsRef.child(id).remove();
+  boothsRef().child(id).remove();
   toast("Booth deleted");
 }
 
@@ -1155,8 +1350,8 @@ function saveZoneManager() {
   const custom = document.getElementById("zmCustom").value.trim();
   const finalName = custom || sel;
   if (!finalName) { toast("Pick or enter a zone manager", "err"); return; }
-  boothsRef.child(activeBoothId).child("zoneManager").set(finalName);
-  if (zmRef) upsertZoneManagerName(finalName);
+  boothsRef().child(activeBoothId).child("zoneManager").set(finalName);
+  if (zmRef()) upsertZoneManagerName(finalName);
   document.getElementById("zmCustom").value = "";
   toast("Zone Manager updated", "ok");
 }
@@ -1227,7 +1422,7 @@ function saveItem() {
     components: componentsObj
   };
 
-  const itemsRef = boothsRef.child(activeBoothId).child("menuItems");
+  const itemsRef = boothsRef().child(activeBoothId).child("menuItems");
   if (editingItemId) {
     itemsRef.child(editingItemId).update(payload);
   } else {
@@ -1239,7 +1434,7 @@ function saveItem() {
 
 function deleteItem(itemId) {
   if (!confirm("Delete this menu item?")) return;
-  boothsRef.child(activeBoothId).child("menuItems").child(itemId).remove();
+  boothsRef().child(activeBoothId).child("menuItems").child(itemId).remove();
   toast("Item deleted");
 }
 
@@ -1363,7 +1558,7 @@ document.getElementById("qcSubmitBtn").addEventListener("click", () => {
     }
   }
 
-  if (!checksRef) { toast("Firebase not configured yet", "err"); return; }
+  if (!checksRef()) { toast("Firebase not configured yet", "err"); return; }
 
   const submitBtn = document.getElementById("qcSubmitBtn");
   const progressEl = document.getElementById("qcUploadProgress");
@@ -1372,6 +1567,8 @@ document.getElementById("qcSubmitBtn").addEventListener("click", () => {
   progressEl.textContent = "Saving check…";
 
   const record = {
+    facilityId: currentFacilityId,
+    facilityName: (facilityMetaData[currentFacilityId] && facilityMetaData[currentFacilityId].name) || currentFacilityId,
     boothId,
     boothName: booth.name,
     zoneManager: booth.zoneManager || "Unassigned",
@@ -1387,7 +1584,7 @@ document.getElementById("qcSubmitBtn").addEventListener("click", () => {
     submittedAt: Date.now()
   };
 
-  const newCheckRef = checksRef.push();
+  const newCheckRef = checksRef().push();
   const checkId = newCheckRef.key;
   newCheckRef.set(record).then(() => {
     toast("Check saved", "ok");
@@ -1413,7 +1610,7 @@ function sendEmailNotification(record, checkId) {
     return;
   }
   const viewLink = checkId
-    ? `${window.location.origin}${window.location.pathname}?check=${checkId}`
+    ? `${window.location.origin}${window.location.pathname}?facility=${currentFacilityId}&check=${checkId}`
     : null;
   const templateParams = {
     booth_name: record.boothName,
@@ -1520,7 +1717,7 @@ function managerFields(entry) {
 function saveManagerRecord(key, overrides) {
   const current = managerFields(zoneManagersData[key]);
   const merged = Object.assign({}, current, overrides);
-  zmRef.child(key).set(merged);
+  zmRef().child(key).set(merged);
 }
 
 function upsertZoneManagerName(name) {
@@ -1541,8 +1738,8 @@ function addNewZoneManager() {
   const role = roleInput.value;
   if (!name) { toast("Enter a name first", "err"); return; }
   if (!pin || pin.length < 4) { toast("Enter a PIN of at least 4 digits", "err"); return; }
-  if (!zmRef) { toast("Firebase not configured yet", "err"); return; }
-  zmRef.child(safeZmKey(name)).set({ name, pin, role, phone, email });
+  if (!zmRef()) { toast("Firebase not configured yet", "err"); return; }
+  zmRef().child(safeZmKey(name)).set({ name, pin, role, phone, email });
   nameInput.value = "";
   emailInput.value = "";
   phoneInput.value = "";
@@ -1624,9 +1821,243 @@ function applyBulkZoneManager() {
   if (!boxes.length) { toast("Check at least one booth", "err"); return; }
   boxes.forEach(b => {
     const boothId = b.dataset.boothId;
-    boothsRef.child(boothId).child("zoneManager").set(name);
+    boothsRef().child(boothId).child("zoneManager").set(name);
   });
   toast(`Assigned ${name} to ${boxes.length} booth${boxes.length===1?"":"s"}`, "ok");
+}
+
+/* ===================================================================
+   FACILITY SWITCHER (Superadmin only)
+   =================================================================== */
+function renderFacilitySwitcher() {
+  const sel = document.getElementById("facilitySwitcherSelect");
+  const ids = Object.keys(facilityMetaData);
+  sel.innerHTML = ids.map(id => {
+    const meta = facilityMetaData[id];
+    const label = (meta && meta.name) ? meta.name : id;
+    return `<option value="${id}">${escapeHtml(label)}</option>`;
+  }).join("");
+  sel.value = currentFacilityId;
+}
+
+document.getElementById("facilitySwitcherSelect").addEventListener("change", (e) => {
+  currentFacilityId = e.target.value;
+  activeBoothId = null;
+  showBoothList();
+  attachFacilityListeners();
+  populateBoothSelect();
+  toast(`Switched to ${(facilityMetaData[currentFacilityId] && facilityMetaData[currentFacilityId].name) || currentFacilityId}`, "ok");
+});
+
+/* ===================================================================
+   FACILITIES TAB (Superadmin only)
+   =================================================================== */
+function renderFacilitiesTab() {
+  const grid = document.getElementById("facilitiesGrid");
+  const ids = Object.keys(facilityMetaData);
+  if (!ids.length) {
+    grid.innerHTML = `<div class="empty" style="grid-column:1/-1;">No facilities yet. Add one above to get started.</div>`;
+    return;
+  }
+  grid.innerHTML = ids.map(id => {
+    const meta = facilityMetaData[id] || {};
+    return `
+      <div class="booth-card">
+        <h3>${escapeHtml(meta.name || id)}</h3>
+        <div class="zm" style="margin-bottom:12px;">ID: <b>${escapeHtml(id)}</b></div>
+        <div class="btn-row">
+          <button class="btn btn-secondary btn-sm" onclick="switchToFacilityFromTab('${id}')">Switch To</button>
+        </div>
+      </div>`;
+  }).join("");
+}
+
+function switchToFacilityFromTab(id) {
+  currentFacilityId = id;
+  document.getElementById("facilitySwitcherSelect").value = id;
+  activeBoothId = null;
+  showBoothList();
+  attachFacilityListeners();
+  populateBoothSelect();
+  document.querySelector('nav.tabs button[data-tab="checkView"]').click();
+  toast(`Switched to ${(facilityMetaData[id] && facilityMetaData[id].name) || id}`, "ok");
+}
+
+function addNewFacility() {
+  const idInput = document.getElementById("newFacilityId");
+  const nameInput = document.getElementById("newFacilityName");
+  const rawId = idInput.value.trim().toLowerCase().replace(/[^a-z0-9_-]/g, "");
+  const name = nameInput.value.trim();
+  if (!rawId) { toast("Enter a short facility id (letters/numbers only)", "err"); return; }
+  if (!name) { toast("Enter a display name", "err"); return; }
+  if (facilityMetaData[rawId]) { toast("That facility id already exists", "err"); return; }
+
+  facilityMetaRef.child(rawId).set({ name }).then(() => {
+    facilityMetaData[rawId] = { name };
+    renderFacilitySwitcher();
+    renderFacilitiesTab();
+    attachDashboardListeners();
+    idInput.value = "";
+    nameInput.value = "";
+    toast("Facility added", "ok");
+  });
+}
+
+/* ===================================================================
+   SUPERADMINS TAB (Superadmin only)
+   =================================================================== */
+let superadminsData = {};
+
+function renderSuperadminsTab() {
+  if (!superadminsRef) return;
+  superadminsRef.on("value", (snap) => {
+    superadminsData = snap.val() || {};
+    const body = document.getElementById("superadminsBody");
+    const keys = Object.keys(superadminsData);
+    if (!keys.length) {
+      body.innerHTML = `<tr><td colspan="5" style="text-align:center; color:var(--slate);">No superadmins added yet.</td></tr>`;
+      return;
+    }
+    body.innerHTML = keys.map(key => {
+      const e = superadminsData[key] || {};
+      return `
+        <tr>
+          <td>${escapeHtml(e.name || "")}</td>
+          <td class="mono">${escapeHtml(e.email || "—not set—")}</td>
+          <td class="mono">${escapeHtml(e.phone || "—not set—")}</td>
+          <td class="mono">${escapeHtml(e.pin || "—not set—")}</td>
+          <td>
+            <button class="btn btn-ghost btn-sm" onclick="resetSuperadminPin('${key}')">Change PIN</button>
+          </td>
+        </tr>`;
+    }).join("");
+  });
+}
+
+function addNewSuperadmin() {
+  const nameInput = document.getElementById("newSuName");
+  const emailInput = document.getElementById("newSuEmail");
+  const phoneInput = document.getElementById("newSuPhone");
+  const pinInput = document.getElementById("newSuPin");
+  const name = nameInput.value.trim();
+  const email = emailInput.value.trim();
+  const phone = phoneInput.value.trim();
+  const pin = pinInput.value.trim();
+  if (!name) { toast("Enter a name first", "err"); return; }
+  if (!pin || pin.length < 4) { toast("Enter a PIN of at least 4 digits", "err"); return; }
+  const key = name.replace(/[.#$/\[\]]/g, "_").replace(/\s+/g, "_");
+  superadminsRef.child(key).set({ name, email, phone, pin }).then(() => {
+    nameInput.value = ""; emailInput.value = ""; phoneInput.value = ""; pinInput.value = "";
+    toast("Superadmin added", "ok");
+  });
+}
+
+function resetSuperadminPin(key) {
+  const e = superadminsData[key] || {};
+  const newPin = prompt("Enter new PIN (4+ digits) for " + (e.name || "this superadmin") + ":");
+  if (!newPin) return;
+  if (newPin.trim().length < 4) { toast("PIN must be at least 4 digits", "err"); return; }
+  superadminsRef.child(key).update({ pin: newPin.trim() });
+  toast("PIN updated", "ok");
+}
+
+/* ===================================================================
+   ALL-VENUES DASHBOARD (Superadmin only)
+   =================================================================== */
+const DASH_OVERDUE_MINUTES = 120; // matches the SMS overdue threshold
+let dashboardListeners = {}; // facilityId -> { boothsRef, checksRef }
+let dashboardData = {};      // facilityId -> { booths, checks }
+
+function attachDashboardListeners() {
+  detachDashboardListeners();
+  Object.keys(facilityMetaData).forEach(fid => {
+    dashboardData[fid] = { booths: {}, checks: {} };
+
+    const br = db.ref("qc/facilities/" + fid + "/booths");
+    br.on("value", (snap) => {
+      dashboardData[fid].booths = snap.val() || {};
+      renderDashboard();
+    });
+
+    const cr = db.ref("qc/facilities/" + fid + "/checks").limitToLast(500);
+    cr.on("value", (snap) => {
+      dashboardData[fid].checks = snap.val() || {};
+      renderDashboard();
+    });
+
+    dashboardListeners[fid] = { boothsRef: br, checksRef: cr };
+  });
+  renderDashboard();
+}
+
+function detachDashboardListeners() {
+  Object.values(dashboardListeners).forEach(({ boothsRef, checksRef }) => {
+    if (boothsRef) boothsRef.off();
+    if (checksRef) checksRef.off();
+  });
+  dashboardListeners = {};
+  dashboardData = {};
+}
+
+function isSameLocalDay(ts, ref) {
+  const a = new Date(ts), b = new Date(ref);
+  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+}
+
+function renderDashboard() {
+  const grid = document.getElementById("dashboardGrid");
+  if (!grid) return;
+  const fids = Object.keys(facilityMetaData);
+  if (!fids.length) {
+    grid.innerHTML = `<div class="empty" style="grid-column:1/-1;">No facilities yet — add one under the Facilities tab.</div>`;
+    return;
+  }
+
+  const now = Date.now();
+
+  grid.innerHTML = fids.map(fid => {
+    const meta = facilityMetaData[fid] || {};
+    const data = dashboardData[fid] || { booths: {}, checks: {} };
+    const booths = data.booths || {};
+    const checks = Object.values(data.checks || {});
+
+    const todayChecks = checks.filter(c => c && isSameLocalDay(c.submittedAt || 0, now));
+    const passCount = todayChecks.filter(c => c.status === "pass").length;
+    const failCount = todayChecks.filter(c => c.status === "fail").length;
+
+    // Last check timestamp per booth, to compute overdue booths.
+    const lastCheckByBooth = {};
+    checks.forEach(c => {
+      if (!c || !c.boothId) return;
+      const t = c.submittedAt || 0;
+      if (!lastCheckByBooth[c.boothId] || t > lastCheckByBooth[c.boothId]) {
+        lastCheckByBooth[c.boothId] = t;
+      }
+    });
+
+    const overdueBooths = Object.entries(booths).filter(([bid, b]) => {
+      if (!b || !b.zoneManager || b.zoneManager === "Unassigned") return false;
+      const last = lastCheckByBooth[bid] || 0;
+      return (now - last) / 60000 >= DASH_OVERDUE_MINUTES;
+    });
+
+    const boothCount = Object.keys(booths).length;
+
+    return `
+      <div class="booth-card">
+        <h3>${escapeHtml(meta.name || fid)}</h3>
+        <div class="zm" style="margin-bottom:2px;">${boothCount} booth${boothCount===1?"":"s"}</div>
+        <div class="dash-stats">
+          <div class="dash-stat"><div class="num pass">${passCount}</div><div class="lbl">Pass Today</div></div>
+          <div class="dash-stat"><div class="num fail">${failCount}</div><div class="lbl">Fail Today</div></div>
+          <div class="dash-stat"><div class="num overdue">${overdueBooths.length}</div><div class="lbl">Overdue</div></div>
+        </div>
+        ${overdueBooths.length ? `<div class="dash-overdue-list">${overdueBooths.map(([bid,b]) => escapeHtml(b.name || bid)).join(", ")}</div>` : ""}
+        <div class="btn-row" style="margin-top:12px;">
+          <button class="btn btn-secondary btn-sm" onclick="switchToFacilityFromTab('${fid}')">Open ${escapeHtml(meta.name || fid)}</button>
+        </div>
+      </div>`;
+  }).join("");
 }
 
 /* ---------------- Utility ---------------- */
