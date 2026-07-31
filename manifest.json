@@ -1,7 +1,7 @@
 {
-  "name": "PRFQC",
-  "short_name": "PRFQC",
-  "description": "Time & temperature quality control tracker for PARF food booths",
+  "name": "Faire Food QC",
+  "short_name": "Faire Food QC",
+  "description": "Time & temperature quality control tracker across multiple Faire venues",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
