@@ -1382,10 +1382,16 @@ function renderBoothGrid() {
 
     return `
       <div style="grid-column:1/-1;">
-        <div style="display:flex; align-items:center; gap:10px; cursor:pointer; padding:10px 4px; border-bottom:2px solid var(--copper); margin-bottom:14px;" onclick="toggleBoothGroup('${escapeHtml(groupName).replace(/'/g,"\\'")}')">
-          <span style="font-size:1.1rem;">${collapsed ? "▶" : "▼"}</span>
-          <h3 style="margin:0;">${escapeHtml(groupName)}</h3>
-          <span class="temp-hint">${groupIds.length} booth${groupIds.length===1?"":"s"}</span>
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px 4px; border-bottom:2px solid var(--copper); margin-bottom:14px; flex-wrap:wrap;">
+          <div style="display:flex; align-items:center; gap:10px; cursor:pointer;" onclick="toggleBoothGroup('${escapeHtml(groupName).replace(/'/g,"\\'")}')">
+            <span style="font-size:1.1rem;">${collapsed ? "▶" : "▼"}</span>
+            <h3 style="margin:0;">${escapeHtml(groupName)}</h3>
+            <span class="temp-hint">${groupIds.length} booth${groupIds.length===1?"":"s"}</span>
+          </div>
+          <div style="display:flex; gap:8px;">
+            <button class="btn btn-primary btn-sm" onclick="event.stopPropagation(); setGroupBoothsOpen('${escapeHtml(groupName).replace(/'/g,"\\'")}', true)">Open All</button>
+            <button class="btn btn-danger btn-sm" onclick="event.stopPropagation(); setGroupBoothsOpen('${escapeHtml(groupName).replace(/'/g,"\\'")}', false)">Close All</button>
+          </div>
         </div>
         ${collapsed ? "" : `<div class="booth-grid" style="margin-bottom:24px;">${cardsHtml}</div>`}
       </div>`;
@@ -1395,6 +1401,15 @@ function renderBoothGrid() {
 function toggleBoothGroup(groupName) {
   collapsedBoothGroups[groupName] = !collapsedBoothGroups[groupName];
   renderBoothGrid();
+}
+
+function setGroupBoothsOpen(groupName, openState) {
+  const idsInGroup = Object.keys(boothsData).filter(id => getBoothType(boothsData[id]) === groupName);
+  if (!idsInGroup.length) return;
+  const updates = idsInGroup.map(id => boothsRef().child(id).update({ isOpen: openState }));
+  Promise.all(updates).then(() => {
+    toast(`${groupName}: ${idsInGroup.length} booth${idsInGroup.length===1?"":"s"} marked ${openState ? "OPEN" : "CLOSED"}`, "ok");
+  });
 }
 
 function editBoothType(id) {
@@ -1573,9 +1588,26 @@ function renderBoothManagerChips(booth) {
     wrap.innerHTML = `<span class="temp-hint">No one assigned yet — add someone below.</span>`;
     return;
   }
-  wrap.innerHTML = names.map(n =>
-    `<span class="chip">${escapeHtml(n)}<button onclick="removeBoothManager('${escapeHtml(n).replace(/'/g, "\\'")}')">×</button></span>`
-  ).join("");
+  wrap.innerHTML = names.map(n => {
+    const safeName = escapeHtml(n).replace(/'/g, "\\'");
+    return `<span class="chip">${escapeHtml(n)}
+      <button onclick="removeBoothManager('${safeName}')" title="Unassign from just this booth">×</button>
+      <button onclick="fireManagerFromBoothPage('${safeName}')" title="Delete entirely from the system (fire)" style="color:var(--red); font-size:.68rem; text-decoration:underline; background:none; border:none; padding:0 0 0 4px;">fire</button>
+    </span>`;
+  }).join("");
+}
+
+function findManagerKeyByName(name) {
+  return Object.keys(zoneManagersData).find(key => managerFields(zoneManagersData[key]).name === name);
+}
+
+function fireManagerFromBoothPage(name) {
+  const key = findManagerKeyByName(name);
+  if (!key) {
+    toast(`${name} isn't a registered Zone Manager in this facility (may be a legacy/typed-in name) — use the × to unassign instead`, "err");
+    return;
+  }
+  deleteManager(key, name);
 }
 
 function addBoothManager() {
@@ -2092,9 +2124,25 @@ function deleteManager(key, name) {
       return;
     }
   }
-  if (!confirm(`Delete ${name}? They will no longer be able to log in, and this can't be undone. (Any booths currently listing them as a Zone Manager will keep showing their name until you remove it manually from that booth's chip list.)`)) return;
-  zmRef().child(key).remove().then(() => {
-    toast(`${name} deleted`, "ok");
+
+  // Find every booth in this facility currently listing them, so we can warn accurately.
+  const affectedBoothIds = Object.keys(boothsData).filter(id => boothHasManager(boothsData[id], name));
+  const warning = affectedBoothIds.length
+    ? ` They are currently assigned to ${affectedBoothIds.length} booth${affectedBoothIds.length === 1 ? "" : "s"} — ${affectedBoothIds.map(id => boothsData[id].name).join(", ")} — and will be automatically removed from all of them.`
+    : "";
+
+  if (!confirm(`Delete ${name}? They will no longer be able to log in, and this can't be undone.${warning}`)) return;
+
+  // Scrub this name from every booth's zoneManagers list in the current facility.
+  const boothUpdates = affectedBoothIds.map(id => {
+    const remainingNames = getBoothManagerNames(boothsData[id]).filter(n => n !== name);
+    const updated = {};
+    remainingNames.forEach((n, i) => updated["m" + i] = n);
+    return boothsRef().child(id).update({ zoneManagers: remainingNames.length ? updated : null });
+  });
+
+  Promise.all(boothUpdates).then(() => zmRef().child(key).remove()).then(() => {
+    toast(`${name} deleted and removed from ${affectedBoothIds.length} booth${affectedBoothIds.length === 1 ? "" : "s"}`, "ok");
   });
 }
 
