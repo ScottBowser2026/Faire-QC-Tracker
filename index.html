@@ -2014,9 +2014,25 @@ function renderManagerPinTable() {
           <button class="btn btn-ghost btn-sm" onclick="editManagerPhone('${key}')">Edit Phone</button>
           <button class="btn btn-ghost btn-sm" onclick="resetManagerPin('${key}')">Change PIN</button>
           <button class="btn btn-ghost btn-sm" onclick="toggleManagerRole('${key}')">${f.role === "admin" ? "Make Manager" : "Make Admin"}</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteManager('${key}', '${escapeHtml(f.name).replace(/'/g, "\\'")}')">Delete</button>
         </td>
       </tr>`;
   }).join("");
+}
+
+function deleteManager(key, name) {
+  const target = managerFields(zoneManagersData[key]);
+  if (target.role === "admin") {
+    const adminCount = Object.values(zoneManagersData).filter(m => managerFields(m).role === "admin").length;
+    if (adminCount <= 1) {
+      toast("Can't delete the last Admin for this facility — make someone else Admin first", "err");
+      return;
+    }
+  }
+  if (!confirm(`Delete ${name}? They will no longer be able to log in, and this can't be undone. (Any booths currently listing them as a Zone Manager will keep showing their name until you remove it manually from that booth's chip list.)`)) return;
+  zmRef().child(key).remove().then(() => {
+    toast(`${name} deleted`, "ok");
+  });
 }
 
 function editManagerEmail(key) {
