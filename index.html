@@ -649,13 +649,6 @@
   <!-- ===================== BOOTHS VIEW ===================== -->
   <section id="boothsView" class="view">
 
-    <div class="zm-box" id="facilityStatusBox" style="border-left-color:var(--copper);">
-      <span class="label">Facility Status</span>
-      <span id="facilityStatusLabel" style="font-weight:700;"></span>
-      <button class="btn btn-secondary btn-sm" onclick="toggleFacilityOpen()" id="facilityStatusToggleBtn"></button>
-      <span class="temp-hint">When closed, Zone Managers can't submit new checks — useful for a seasonal venue that isn't open every day.</span>
-    </div>
-
     <!-- Booth list -->
     <div id="boothListPane">
       <div class="section-head">
@@ -1295,7 +1288,6 @@ function attachFacilityListeners() {
     const fmr = db.ref("qc/facilityMeta/" + currentFacilityId);
     fmr.on("value", (snap) => {
       facilityMetaData[currentFacilityId] = snap.val() || { name: currentFacilityId };
-      renderFacilityStatusBox();
       populateBoothSelect();
     });
     activeFacilityMetaListener = fmr;
@@ -1430,12 +1422,6 @@ function populateBoothSelect() {
   let ids = Object.keys(boothsData);
 
   const isManagerRole = loggedInManager && loggedInManager.role !== "admin" && loggedInManager.role !== "superadmin";
-
-  if (isManagerRole && !isFacilityOpen(currentFacilityId)) {
-    sel.innerHTML = `<option value="">This venue is currently closed — checks can't be submitted</option>`;
-    sel.disabled = true;
-    return;
-  }
 
   if (isManagerRole) {
     ids = ids.filter(id => boothHasManager(boothsData[id], loggedInManager.name) && isBoothOpen(boothsData[id]));
@@ -1828,10 +1814,6 @@ document.getElementById("qcSubmitBtn").addEventListener("click", () => {
   const notes = document.getElementById("qcNotes").value.trim();
 
   const isManagerRole = loggedInManager.role !== "admin" && loggedInManager.role !== "superadmin";
-  if (isManagerRole && !isFacilityOpen(currentFacilityId)) {
-    toast("This venue is currently closed — checks can't be submitted", "err");
-    return;
-  }
 
   if (!boothId) { toast("Select a booth", "err"); return; }
   if (!itemId) { toast("Select a menu item", "err"); return; }
@@ -2499,35 +2481,7 @@ function boothManagerDisplay(booth) {
   return names.length ? names.join(", ") : "Unassigned";
 }
 
-/* ---------------- Facility Open/Closed status ---------------- */
-function isFacilityOpen(facilityId) {
-  const meta = facilityMetaData[facilityId];
-  // Defaults to OPEN unless an Admin/Superadmin has explicitly closed it —
-  // avoids silently blocking any facility already in active use before
-  // this toggle existed. Close it manually between operating weekends.
-  return !(meta && meta.isOpen === false);
-}
-
-function renderFacilityStatusBox() {
-  const label = document.getElementById("facilityStatusLabel");
-  const btn = document.getElementById("facilityStatusToggleBtn");
-  if (!label || !btn || !currentFacilityId) return;
-  const open = isFacilityOpen(currentFacilityId);
-  label.textContent = open ? "OPEN — checks can be submitted" : "CLOSED — checks are blocked";
-  label.style.color = open ? "var(--green)" : "var(--red)";
-  btn.textContent = open ? "Close for Today" : "Open for Business";
-  btn.className = open ? "btn btn-danger btn-sm" : "btn btn-primary btn-sm";
-}
-
-function toggleFacilityOpen() {
-  if (!currentFacilityId) return;
-  const nowOpen = !isFacilityOpen(currentFacilityId);
-  facilityMetaRef.child(currentFacilityId).update({ isOpen: nowOpen }).then(() => {
-    toast(nowOpen ? "Facility marked OPEN" : "Facility marked CLOSED", "ok");
-  });
-}
-
-/* ---------------- Booth-level Open/Closed (finer-grained than facility) ---------------- */
+/* ---------------- Booth-level Open/Closed ---------------- */
 function isBoothOpen(booth) {
   // Defaults to OPEN unless explicitly closed — same non-breaking pattern as facility status.
   return !(booth && booth.isOpen === false);
