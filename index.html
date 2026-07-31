@@ -2066,11 +2066,18 @@ function renderZmAssignTable() {
   const ids = Object.keys(boothsData);
   body.innerHTML = ids.map(id => {
     const b = boothsData[id];
+    const names = getBoothManagerNames(b);
+    const namesHtml = names.length
+      ? names.map(n => {
+          const safe = escapeHtml(n).replace(/'/g, "\\'");
+          return `<span class="chip" style="margin:2px 4px 2px 0;">${escapeHtml(n)}<button onclick="removeManagerFromBoothDirect('${id}','${safe}')" title="Remove from this booth">×</button></span>`;
+        }).join("")
+      : `<span class="temp-hint">Unassigned</span>`;
     return `
       <tr>
         <td><input type="checkbox" class="zm-booth-checkbox" data-booth-id="${id}"></td>
         <td>${escapeHtml(b.name || "Unnamed Booth")}</td>
-        <td>${escapeHtml(boothManagerDisplay(b))}</td>
+        <td>${namesHtml}</td>
       </tr>`;
   }).join("");
 
@@ -2081,6 +2088,17 @@ function renderZmAssignTable() {
     `<option value="${escapeHtml(n)}">${escapeHtml(n)}</option>`
   ).join("");
   if (names.includes(current)) bulkSel.value = current;
+}
+
+function removeManagerFromBoothDirect(boothId, name) {
+  const booth = boothsData[boothId];
+  if (!booth) return;
+  const remainingNames = getBoothManagerNames(booth).filter(n => n !== name);
+  const updated = {};
+  remainingNames.forEach((n, i) => updated["m" + i] = n);
+  boothsRef().child(boothId).update({ zoneManagers: remainingNames.length ? updated : null }).then(() => {
+    toast(`${name} removed from ${booth.name || "booth"}`, "ok");
+  });
 }
 
 function safeZmKey(name) {
