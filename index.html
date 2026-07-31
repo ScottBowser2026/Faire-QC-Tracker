@@ -648,6 +648,13 @@
   <!-- ===================== BOOTHS VIEW ===================== -->
   <section id="boothsView" class="view">
 
+    <div class="zm-box" id="facilityStatusBox" style="border-left-color:var(--copper);">
+      <span class="label">Facility Status</span>
+      <span id="facilityStatusLabel" style="font-weight:700;"></span>
+      <button class="btn btn-secondary btn-sm" onclick="toggleFacilityOpen()" id="facilityStatusToggleBtn"></button>
+      <span class="temp-hint">When closed, Zone Managers can't submit new checks — useful for a seasonal venue that isn't open every day.</span>
+    </div>
+
     <!-- Booth list -->
     <div id="boothListPane">
       <div class="section-head">
@@ -668,11 +675,14 @@
         </div>
       </div>
 
-      <div class="zm-box">
-        <span class="label">Zone Manager</span>
-        <select id="zmSelect"></select>
-        <input type="text" id="zmCustom" placeholder="Or type a new name…" style="max-width:180px;">
-        <button class="btn btn-secondary btn-sm" onclick="saveZoneManager()">Save</button>
+      <div class="zm-box" style="flex-direction:column; align-items:flex-start;">
+        <span class="label">Zone Managers (shared responsibility)</span>
+        <div class="chip-row" id="boothManagerChips" style="margin:8px 0;"></div>
+        <div style="display:flex; gap:8px; align-items:center;">
+          <select id="zmAddSelect"></select>
+          <input type="text" id="zmCustom" placeholder="Or type a new name…" style="max-width:180px;">
+          <button class="btn btn-secondary btn-sm" onclick="addBoothManager()">Add</button>
+        </div>
       </div>
 
       <div class="item-grid" id="itemGrid"></div>
@@ -705,7 +715,8 @@
     <div class="zm-box" style="border-left-color:var(--ink);">
       <span class="label">Assign to Selected Booths</span>
       <select id="bulkZmSelect"><option value="">Choose zone manager…</option></select>
-      <button class="btn btn-primary btn-sm" onclick="applyBulkZoneManager()">Assign to Checked Booths</button>
+      <button class="btn btn-primary btn-sm" onclick="applyBulkZoneManager()">Add to Checked Booths</button>
+      <button class="btn btn-danger btn-sm" onclick="removeBulkZoneManager()">Remove from Checked Booths</button>
       <button class="btn btn-ghost btn-sm" onclick="toggleSelectAllBooths()">Select / Deselect All</button>
     </div>
 
@@ -876,6 +887,7 @@ let isSuperadmin = false;
 let activeBoothsListener = null;
 let activeZmListener = null;
 let activeChecksListener = null;
+let activeFacilityMetaListener = null;
 
 let boothsData = {};
 let zoneManagersData = {};
@@ -1241,15 +1253,27 @@ function attachFacilityListeners() {
     });
     activeChecksListener = cr;
   }
+
+  if (db && currentFacilityId) {
+    const fmr = db.ref("qc/facilityMeta/" + currentFacilityId);
+    fmr.on("value", (snap) => {
+      facilityMetaData[currentFacilityId] = snap.val() || { name: currentFacilityId };
+      renderFacilityStatusBox();
+      populateBoothSelect();
+    });
+    activeFacilityMetaListener = fmr;
+  }
 }
 
 function detachFacilityListeners() {
   if (activeBoothsListener) activeBoothsListener.off();
   if (activeZmListener) activeZmListener.off();
   if (activeChecksListener) activeChecksListener.off();
+  if (activeFacilityMetaListener) activeFacilityMetaListener.off();
   activeBoothsListener = null;
   activeZmListener = null;
   activeChecksListener = null;
+  activeFacilityMetaListener = null;
   boothsData = {};
   zoneManagersData = {};
   checksData = {};
@@ -1272,7 +1296,7 @@ function renderBoothGrid() {
       return `
         <div class="booth-card">
           <h3>${escapeHtml(b.name || "Unnamed Booth")}</h3>
-          <div class="zm">Zone Manager: <b>${escapeHtml(b.zoneManager || "Unassigned")}</b></div>
+          <div class="zm">Zone Manager${getBoothManagerNames(b).length === 1 ? "" : "s"}: <b>${escapeHtml(boothManagerDisplay(b))}</b></div>
           <div style="font-size:.78rem; color:var(--slate); margin-bottom:12px;">${itemCount} menu item${itemCount===1?"":"s"}</div>
           <div class="btn-row">
             <button class="btn btn-secondary btn-sm" onclick="showBoothDetail('${id}')">Manage Menu</button>
@@ -1290,11 +1314,19 @@ function populateBoothSelect() {
   const current = sel.value;
   let ids = Object.keys(boothsData);
 
-  if (loggedInManager && loggedInManager.role !== "admin") {
-    ids = ids.filter(id => boothsData[id].zoneManager === loggedInManager.name);
+  const isManagerRole = loggedInManager && loggedInManager.role !== "admin" && loggedInManager.role !== "superadmin";
+
+  if (isManagerRole && !isFacilityOpen(currentFacilityId)) {
+    sel.innerHTML = `<option value="">This venue is currently closed — checks can't be submitted</option>`;
+    sel.disabled = true;
+    return;
   }
 
-  if (loggedInManager && loggedInManager.role !== "admin" && !ids.length) {
+  if (isManagerRole) {
+    ids = ids.filter(id => boothHasManager(boothsData[id], loggedInManager.name));
+  }
+
+  if (isManagerRole && !ids.length) {
     sel.innerHTML = `<option value="">No booths assigned to you yet</option>`;
     sel.disabled = true;
     return;
@@ -1334,7 +1366,7 @@ function renderBoothDetail(id) {
   if (!b) { showBoothList(); return; }
   document.getElementById("boothDetailName").textContent = b.name || "Unnamed Booth";
   populateZmSelect();
-  document.getElementById("zmSelect").value = b.zoneManager || "";
+  renderBoothManagerChips(b);
 
   const items = b.menuItems || {};
   const itemIds = Object.keys(items);
@@ -1416,26 +1448,58 @@ function zmName(entry) {
 }
 
 function populateZmSelect() {
-  const sel = document.getElementById("zmSelect");
+  const sel = document.getElementById("zmAddSelect");
   if (!sel) return;
   const names = Object.values(zoneManagersData).map(zmName).filter(Boolean);
   const current = sel.value;
-  sel.innerHTML = `<option value="">Unassigned</option>` + names.map(n =>
+  sel.innerHTML = `<option value="">Choose existing…</option>` + names.map(n =>
     `<option value="${escapeHtml(n)}">${escapeHtml(n)}</option>`
   ).join("");
   if (names.includes(current)) sel.value = current;
 }
 
-function saveZoneManager() {
+function renderBoothManagerChips(booth) {
+  const wrap = document.getElementById("boothManagerChips");
+  if (!wrap) return;
+  const names = getBoothManagerNames(booth);
+  if (!names.length) {
+    wrap.innerHTML = `<span class="temp-hint">No one assigned yet — add someone below.</span>`;
+    return;
+  }
+  wrap.innerHTML = names.map(n =>
+    `<span class="chip">${escapeHtml(n)}<button onclick="removeBoothManager('${escapeHtml(n).replace(/'/g, "\\'")}')">×</button></span>`
+  ).join("");
+}
+
+function addBoothManager() {
   if (!activeBoothId) return;
-  const sel = document.getElementById("zmSelect").value;
+  const sel = document.getElementById("zmAddSelect").value;
   const custom = document.getElementById("zmCustom").value.trim();
   const finalName = custom || sel;
-  if (!finalName) { toast("Pick or enter a zone manager", "err"); return; }
-  boothsRef().child(activeBoothId).child("zoneManager").set(finalName);
+  if (!finalName) { toast("Pick or enter a name", "err"); return; }
+
+  const booth = boothsData[activeBoothId];
+  const currentNames = getBoothManagerNames(booth);
+  if (currentNames.includes(finalName)) { toast(`${finalName} is already assigned to this booth`, "err"); return; }
+
+  const updated = {};
+  currentNames.forEach((n, i) => updated["m" + i] = n);
+  updated["m" + currentNames.length] = finalName;
+
+  boothsRef().child(activeBoothId).update({ zoneManagers: updated, zoneManager: null });
   if (zmRef()) upsertZoneManagerName(finalName);
   document.getElementById("zmCustom").value = "";
-  toast("Zone Manager updated", "ok");
+  toast(`${finalName} added to this booth`, "ok");
+}
+
+function removeBoothManager(name) {
+  if (!activeBoothId) return;
+  const booth = boothsData[activeBoothId];
+  const currentNames = getBoothManagerNames(booth).filter(n => n !== name);
+  const updated = {};
+  currentNames.forEach((n, i) => updated["m" + i] = n);
+  boothsRef().child(activeBoothId).update({ zoneManagers: currentNames.length ? updated : null });
+  toast(`${name} removed from this booth`, "ok");
 }
 
 /* ---------------- Menu Item CRUD ---------------- */
@@ -1568,7 +1632,7 @@ document.getElementById("qcPhoto").addEventListener("change", (e) => {
 
 qcBoothSel.addEventListener("change", () => {
   const b = boothsData[qcBoothSel.value];
-  qcZmDisplay.textContent = b ? `Zone Manager: ${b.zoneManager || "Unassigned"}` : "";
+  qcZmDisplay.textContent = b ? `Zone Manager(s): ${boothManagerDisplay(b)}` : "";
   const items = (b && b.menuItems) ? b.menuItems : {};
   const ids = Object.keys(items);
   if (!ids.length) {
@@ -1611,6 +1675,12 @@ document.getElementById("qcSubmitBtn").addEventListener("click", () => {
   const tempVal = document.getElementById("qcTemp").value;
   const notes = document.getElementById("qcNotes").value.trim();
 
+  const isManagerRole = loggedInManager.role !== "admin" && loggedInManager.role !== "superadmin";
+  if (isManagerRole && !isFacilityOpen(currentFacilityId)) {
+    toast("This venue is currently closed — checks can't be submitted", "err");
+    return;
+  }
+
   if (!boothId) { toast("Select a booth", "err"); return; }
   if (!itemId) { toast("Select a menu item", "err"); return; }
   if (!checkedBy) { toast("Enter who's running this check", "err"); return; }
@@ -1620,7 +1690,7 @@ document.getElementById("qcSubmitBtn").addEventListener("click", () => {
   const booth = boothsData[boothId];
   const item = booth.menuItems[itemId];
 
-  if (loggedInManager.role !== "admin" && booth.zoneManager !== loggedInManager.name) {
+  if (isManagerRole && !boothHasManager(booth, loggedInManager.name)) {
     toast("That booth isn't assigned to you", "err");
     return;
   }
@@ -1653,7 +1723,7 @@ document.getElementById("qcSubmitBtn").addEventListener("click", () => {
     facilityName: (facilityMetaData[currentFacilityId] && facilityMetaData[currentFacilityId].name) || currentFacilityId,
     boothId,
     boothName: booth.name,
-    zoneManager: booth.zoneManager || "Unassigned",
+    zoneManager: boothManagerDisplay(booth),
     itemId,
     itemName: item.name,
     checkedBy,
@@ -1795,7 +1865,7 @@ function renderZmAssignTable() {
       <tr>
         <td><input type="checkbox" class="zm-booth-checkbox" data-booth-id="${id}"></td>
         <td>${escapeHtml(b.name || "Unnamed Booth")}</td>
-        <td>${escapeHtml(b.zoneManager || "Unassigned")}</td>
+        <td>${escapeHtml(boothManagerDisplay(b))}</td>
       </tr>`;
   }).join("");
 
@@ -1932,9 +2002,31 @@ function applyBulkZoneManager() {
   if (!boxes.length) { toast("Check at least one booth", "err"); return; }
   boxes.forEach(b => {
     const boothId = b.dataset.boothId;
-    boothsRef().child(boothId).child("zoneManager").set(name);
+    const booth = boothsData[boothId];
+    const currentNames = getBoothManagerNames(booth);
+    if (currentNames.includes(name)) return; // already assigned, skip
+    const updated = {};
+    currentNames.forEach((n, i) => updated["m" + i] = n);
+    updated["m" + currentNames.length] = name;
+    boothsRef().child(boothId).update({ zoneManagers: updated, zoneManager: null });
   });
-  toast(`Assigned ${name} to ${boxes.length} booth${boxes.length===1?"":"s"}`, "ok");
+  toast(`Added ${name} to ${boxes.length} booth${boxes.length===1?"":"s"}`, "ok");
+}
+
+function removeBulkZoneManager() {
+  const name = document.getElementById("bulkZmSelect").value;
+  if (!name) { toast("Choose a zone manager first", "err"); return; }
+  const boxes = document.querySelectorAll(".zm-booth-checkbox:checked");
+  if (!boxes.length) { toast("Check at least one booth", "err"); return; }
+  boxes.forEach(b => {
+    const boothId = b.dataset.boothId;
+    const booth = boothsData[boothId];
+    const currentNames = getBoothManagerNames(booth).filter(n => n !== name);
+    const updated = {};
+    currentNames.forEach((n, i) => updated["m" + i] = n);
+    boothsRef().child(boothId).update({ zoneManagers: currentNames.length ? updated : null });
+  });
+  toast(`Removed ${name} from ${boxes.length} booth${boxes.length===1?"":"s"}`, "ok");
 }
 
 /* ===================================================================
@@ -2174,7 +2266,7 @@ function renderDashboard() {
     });
 
     const overdueBooths = Object.entries(booths).filter(([bid, b]) => {
-      if (!b || !b.zoneManager || b.zoneManager === "Unassigned") return false;
+      if (!b || getBoothManagerNames(b).length === 0) return false;
       const last = lastCheckByBooth[bid] || 0;
       return (now - last) / 60000 >= DASH_OVERDUE_MINUTES;
     });
@@ -2196,6 +2288,54 @@ function renderDashboard() {
         </div>
       </div>`;
   }).join("");
+}
+
+/* ---------------- Multi-Zone-Manager-per-booth helpers ---------------- */
+function getBoothManagerNames(booth) {
+  if (!booth) return [];
+  if (booth.zoneManagers && typeof booth.zoneManagers === "object") {
+    return Object.values(booth.zoneManagers).filter(Boolean);
+  }
+  // Backward compatibility with booths saved before multi-manager support.
+  if (booth.zoneManager && booth.zoneManager !== "Unassigned") return [booth.zoneManager];
+  return [];
+}
+
+function boothHasManager(booth, name) {
+  return getBoothManagerNames(booth).includes(name);
+}
+
+function boothManagerDisplay(booth) {
+  const names = getBoothManagerNames(booth);
+  return names.length ? names.join(", ") : "Unassigned";
+}
+
+/* ---------------- Facility Open/Closed status ---------------- */
+function isFacilityOpen(facilityId) {
+  const meta = facilityMetaData[facilityId];
+  // Defaults to OPEN unless an Admin/Superadmin has explicitly closed it —
+  // avoids silently blocking any facility already in active use before
+  // this toggle existed. Close it manually between operating weekends.
+  return !(meta && meta.isOpen === false);
+}
+
+function renderFacilityStatusBox() {
+  const label = document.getElementById("facilityStatusLabel");
+  const btn = document.getElementById("facilityStatusToggleBtn");
+  if (!label || !btn || !currentFacilityId) return;
+  const open = isFacilityOpen(currentFacilityId);
+  label.textContent = open ? "OPEN — checks can be submitted" : "CLOSED — checks are blocked";
+  label.style.color = open ? "var(--green)" : "var(--red)";
+  btn.textContent = open ? "Close for Today" : "Open for Business";
+  btn.className = open ? "btn btn-danger btn-sm" : "btn btn-primary btn-sm";
+}
+
+function toggleFacilityOpen() {
+  if (!currentFacilityId) return;
+  const nowOpen = !isFacilityOpen(currentFacilityId);
+  facilityMetaRef.child(currentFacilityId).update({ isOpen: nowOpen }).then(() => {
+    toast(nowOpen ? "Facility marked OPEN" : "Facility marked CLOSED", "ok");
+  });
 }
 
 /* ---------------- Utility ---------------- */
