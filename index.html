@@ -810,6 +810,13 @@
   <div class="modal-box">
     <h3 id="boothModalTitle">Add Booth</h3>
     <div class="field"><label>Booth Name</label><input type="text" id="boothNameInput" placeholder="e.g. Turkey Leg Tavern"></div>
+    <div class="field">
+      <label>Type / Group</label>
+      <select id="boothTypeInput">
+        <option value="Concession">Concession</option>
+        <option value="Catering & Banquet">Catering &amp; Banquet</option>
+      </select>
+    </div>
     <div class="field"><label>Zone Manager (optional, can set later)</label><input type="text" id="boothZmInput" placeholder="e.g. Jane Smith"></div>
     <div class="modal-actions">
       <button class="btn btn-ghost btn-sm" onclick="closeModal('boothModalOverlay')">Cancel</button>
@@ -1318,13 +1325,40 @@ function detachFacilityListeners() {
   renderStaffNotes();
 }
 
+let collapsedBoothGroups = {}; // { groupName: true/false }
+
+function getBoothType(booth) {
+  return (booth && booth.boothType) ? booth.boothType : "Concession";
+}
+
 function renderBoothGrid() {
   const grid = document.getElementById("boothGrid");
   const ids = Object.keys(boothsData);
   if (!ids.length) {
-    grid.innerHTML = `<div class="empty" style="grid-column:1/-1;">No booths yet. Add your first booth to get started.</div>`;
-  } else {
-    grid.innerHTML = ids.map(id => {
+    grid.innerHTML = `<div class="empty">No booths yet. Add your first booth to get started.</div>` +
+      `<div class="add-booth-card" onclick="openBoothModal()" style="margin-top:12px;">+ Add Booth</div>`;
+    return;
+  }
+
+  // Group booths by type (Concession, Catering & Banquet, or anything custom).
+  const groups = {};
+  ids.forEach(id => {
+    const type = getBoothType(boothsData[id]);
+    groups[type] = groups[type] || [];
+    groups[type].push(id);
+  });
+
+  const groupNames = Object.keys(groups).sort((a, b) => {
+    // Keep Concession first by convention, everything else alphabetical after.
+    if (a === "Concession") return -1;
+    if (b === "Concession") return 1;
+    return a.localeCompare(b);
+  });
+
+  grid.innerHTML = groupNames.map(groupName => {
+    const groupIds = groups[groupName];
+    const collapsed = !!collapsedBoothGroups[groupName];
+    const cardsHtml = groupIds.map(id => {
       const b = boothsData[id];
       const itemCount = b.menuItems ? Object.keys(b.menuItems).length : 0;
       const boothOpen = isBoothOpen(b);
@@ -1340,12 +1374,39 @@ function renderBoothGrid() {
             <button class="btn btn-secondary btn-sm" onclick="showBoothDetail('${id}')">Manage Menu</button>
             <button class="btn ${boothOpen ? "btn-danger" : "btn-primary"} btn-sm" onclick="toggleBoothOpen('${id}')">${boothOpen ? "Close Booth" : "Open Booth"}</button>
             <button class="btn btn-ghost btn-sm" onclick="editBoothName('${id}')">Edit Name</button>
+            <button class="btn btn-ghost btn-sm" onclick="editBoothType('${id}')">Edit Type</button>
             <button class="btn btn-danger btn-sm" onclick="deleteBooth('${id}')">Delete</button>
           </div>
         </div>`;
     }).join("");
-  }
-  grid.innerHTML += `<div class="add-booth-card" onclick="openBoothModal()">+ Add Booth</div>`;
+
+    return `
+      <div style="grid-column:1/-1;">
+        <div style="display:flex; align-items:center; gap:10px; cursor:pointer; padding:10px 4px; border-bottom:2px solid var(--copper); margin-bottom:14px;" onclick="toggleBoothGroup('${escapeHtml(groupName).replace(/'/g,"\\'")}')">
+          <span style="font-size:1.1rem;">${collapsed ? "▶" : "▼"}</span>
+          <h3 style="margin:0;">${escapeHtml(groupName)}</h3>
+          <span class="temp-hint">${groupIds.length} booth${groupIds.length===1?"":"s"}</span>
+        </div>
+        ${collapsed ? "" : `<div class="booth-grid" style="margin-bottom:24px;">${cardsHtml}</div>`}
+      </div>`;
+  }).join("") + `<div class="add-booth-card" onclick="openBoothModal()">+ Add Booth</div>`;
+}
+
+function toggleBoothGroup(groupName) {
+  collapsedBoothGroups[groupName] = !collapsedBoothGroups[groupName];
+  renderBoothGrid();
+}
+
+function editBoothType(id) {
+  const booth = boothsData[id];
+  if (!booth) return;
+  const current = getBoothType(booth);
+  const newType = prompt("Booth type/group (e.g. Concession, Catering & Banquet):", current);
+  if (newType === null) return;
+  const trimmed = newType.trim();
+  if (!trimmed) { toast("Type can't be empty", "err"); return; }
+  boothsRef().child(id).child("boothType").set(trimmed);
+  toast("Booth type updated", "ok");
 }
 
 function populateBoothSelect() {
@@ -1451,17 +1512,19 @@ function renderBoothDetail(id) {
 function openBoothModal() {
   document.getElementById("boothModalTitle").textContent = "Add Booth";
   document.getElementById("boothNameInput").value = "";
+  document.getElementById("boothTypeInput").value = "Concession";
   document.getElementById("boothZmInput").value = "";
   openModal("boothModalOverlay");
 }
 
 function saveBooth() {
   const name = document.getElementById("boothNameInput").value.trim();
+  const boothType = document.getElementById("boothTypeInput").value;
   const zm = document.getElementById("boothZmInput").value.trim();
   if (!name) { toast("Enter a booth name", "err"); return; }
   if (!boothsRef()) { toast("Firebase not configured yet", "err"); return; }
   const newRef = boothsRef().push();
-  newRef.set({ name, zoneManager: zm || "", menuItems: {} });
+  newRef.set({ name, boothType, zoneManager: zm || "", menuItems: {} });
   if (zm && zmRef()) upsertZoneManagerName(zm);
   closeModal("boothModalOverlay");
   toast("Booth added", "ok");
