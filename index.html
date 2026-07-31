@@ -653,7 +653,10 @@
     <div id="boothListPane">
       <div class="section-head">
         <h2>Booths</h2>
-        <button class="btn btn-primary btn-sm" onclick="openBoothModal()">+ Add Booth</button>
+        <div style="display:flex; gap:8px;">
+          <button class="btn btn-secondary btn-sm" onclick="downloadFoodReport()">⬇ Download Food Report</button>
+          <button class="btn btn-primary btn-sm" onclick="openBoothModal()">+ Add Booth</button>
+        </div>
       </div>
       <div class="booth-grid" id="boothGrid"></div>
     </div>
@@ -1414,6 +1417,69 @@ function editBoothType(id) {
   if (!trimmed) { toast("Type can't be empty", "err"); return; }
   boothsRef().child(id).child("boothType").set(trimmed);
   toast("Booth type updated", "ok");
+}
+
+/* ---------------- Food Report (downloadable CSV) ---------------- */
+function csvEscape(val) {
+  const s = String(val === null || val === undefined ? "" : val);
+  if (/[",\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
+  return s;
+}
+
+function downloadFoodReport() {
+  const ids = Object.keys(boothsData);
+  if (!ids.length) { toast("No booths to report on yet", "err"); return; }
+
+  const headers = ["Booth", "Type", "Zone Manager(s)", "Booth Status", "Menu Item", "Category", "Requires Temp", "Min/Max Safe Temp (F)", "Components / Ingredients"];
+  const rows = [headers];
+
+  // Sort booths by type (Concession first) then name, matching the on-screen grouping.
+  const sortedIds = ids.slice().sort((a, b) => {
+    const ta = getBoothType(boothsData[a]), tb = getBoothType(boothsData[b]);
+    if (ta !== tb) {
+      if (ta === "Concession") return -1;
+      if (tb === "Concession") return 1;
+      return ta.localeCompare(tb);
+    }
+    return (boothsData[a].name || "").localeCompare(boothsData[b].name || "");
+  });
+
+  sortedIds.forEach(id => {
+    const b = boothsData[id];
+    const boothName = b.name || "Unnamed Booth";
+    const boothType = getBoothType(b);
+    const managers = boothManagerDisplay(b);
+    const status = isBoothOpen(b) ? "OPEN" : "CLOSED";
+    const items = b.menuItems || {};
+    const itemIds = Object.keys(items);
+
+    if (!itemIds.length) {
+      rows.push([boothName, boothType, managers, status, "(no menu items yet)", "", "", "", ""]);
+      return;
+    }
+
+    itemIds.forEach(iid => {
+      const it = items[iid];
+      const comps = it.components ? Object.values(it.components).join(", ") : "";
+      const tempReq = it.requiresTemp ? "YES" : "NO";
+      const minMax = it.minTemp ? (it.category === "cold-food" ? `≤ ${it.minTemp}°F` : `≥ ${it.minTemp}°F`) : "";
+      rows.push([boothName, boothType, managers, status, it.name || "", it.category || "", tempReq, minMax, comps]);
+    });
+  });
+
+  const csvContent = rows.map(r => r.map(csvEscape).join(",")).join("\r\n");
+  const blob = new Blob(["\uFEFF" + csvContent], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const facilityLabel = (facilityMetaData[currentFacilityId] && facilityMetaData[currentFacilityId].name) || currentFacilityId || "facility";
+  const dateStr = new Date().toISOString().slice(0, 10);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `food-report-${facilityLabel.replace(/[^a-z0-9]/gi, "_")}-${dateStr}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  toast("Report downloaded", "ok");
 }
 
 function populateBoothSelect() {
