@@ -670,6 +670,7 @@
       <div class="section-head">
         <h2 id="boothDetailName">Booth</h2>
         <div style="display:flex; gap:8px;">
+          <button class="btn btn-secondary btn-sm" id="boothDetailStatusBtn" onclick="toggleBoothOpen(activeBoothId)"></button>
           <button class="btn btn-ghost btn-sm" onclick="editBoothName()">Edit Name</button>
           <button class="btn btn-primary btn-sm" onclick="openItemModal()">+ Add Menu Item</button>
         </div>
@@ -832,7 +833,8 @@
     </div>
     <div class="modal-actions">
       <button class="btn btn-ghost btn-sm" onclick="closeModal('itemModalOverlay')">Cancel</button>
-      <button class="btn btn-primary btn-sm" onclick="saveItem()">Save Item</button>
+      <button class="btn btn-secondary btn-sm" id="saveAddAnotherBtn" onclick="saveItem(true)">Save &amp; Add Another</button>
+      <button class="btn btn-primary btn-sm" onclick="saveItem(false)">Save &amp; Close</button>
     </div>
   </div>
 </div>
@@ -1293,13 +1295,18 @@ function renderBoothGrid() {
     grid.innerHTML = ids.map(id => {
       const b = boothsData[id];
       const itemCount = b.menuItems ? Object.keys(b.menuItems).length : 0;
+      const boothOpen = isBoothOpen(b);
       return `
         <div class="booth-card">
-          <h3>${escapeHtml(b.name || "Unnamed Booth")}</h3>
+          <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+            <h3 style="margin-bottom:2px;">${escapeHtml(b.name || "Unnamed Booth")}</h3>
+            <span class="tag ${boothOpen ? "no-temp" : "temp-req"}" style="flex:none;">${boothOpen ? "OPEN" : "CLOSED"}</span>
+          </div>
           <div class="zm">Zone Manager${getBoothManagerNames(b).length === 1 ? "" : "s"}: <b>${escapeHtml(boothManagerDisplay(b))}</b></div>
           <div style="font-size:.78rem; color:var(--slate); margin-bottom:12px;">${itemCount} menu item${itemCount===1?"":"s"}</div>
           <div class="btn-row">
             <button class="btn btn-secondary btn-sm" onclick="showBoothDetail('${id}')">Manage Menu</button>
+            <button class="btn ${boothOpen ? "btn-danger" : "btn-primary"} btn-sm" onclick="toggleBoothOpen('${id}')">${boothOpen ? "Close Booth" : "Open Booth"}</button>
             <button class="btn btn-ghost btn-sm" onclick="editBoothName('${id}')">Edit Name</button>
             <button class="btn btn-danger btn-sm" onclick="deleteBooth('${id}')">Delete</button>
           </div>
@@ -1323,11 +1330,11 @@ function populateBoothSelect() {
   }
 
   if (isManagerRole) {
-    ids = ids.filter(id => boothHasManager(boothsData[id], loggedInManager.name));
+    ids = ids.filter(id => boothHasManager(boothsData[id], loggedInManager.name) && isBoothOpen(boothsData[id]));
   }
 
   if (isManagerRole && !ids.length) {
-    sel.innerHTML = `<option value="">No booths assigned to you yet</option>`;
+    sel.innerHTML = `<option value="">No open booths assigned to you right now</option>`;
     sel.disabled = true;
     return;
   }
@@ -1367,6 +1374,11 @@ function renderBoothDetail(id) {
   document.getElementById("boothDetailName").textContent = b.name || "Unnamed Booth";
   populateZmSelect();
   renderBoothManagerChips(b);
+
+  const statusBtn = document.getElementById("boothDetailStatusBtn");
+  const boothOpen = isBoothOpen(b);
+  statusBtn.textContent = boothOpen ? "Close Booth" : "Open Booth";
+  statusBtn.className = boothOpen ? "btn btn-danger btn-sm" : "btn btn-primary btn-sm";
 
   const items = b.menuItems || {};
   const itemIds = Object.keys(items);
@@ -1524,6 +1536,7 @@ function openItemModal(itemId) {
   document.getElementById("itemMinTempInput").value = it && it.minTemp ? it.minTemp : "";
   pendingComponents = it && it.components ? Object.values(it.components) : [];
   renderComponentChips();
+  document.getElementById("saveAddAnotherBtn").style.display = itemId ? "none" : "inline-flex";
   openModal("itemModalOverlay");
 }
 
@@ -1548,7 +1561,7 @@ function renderComponentChips() {
   ).join("");
 }
 
-function saveItem() {
+function saveItem(keepOpen) {
   const name = document.getElementById("itemNameInput").value.trim();
   const category = document.getElementById("itemCategoryInput").value;
   const requiresTemp = document.getElementById("itemRequiresTemp").checked;
@@ -1569,13 +1582,25 @@ function saveItem() {
   };
 
   const itemsRef = boothsRef().child(activeBoothId).child("menuItems");
+  const wasEditing = !!editingItemId;
   if (editingItemId) {
     itemsRef.child(editingItemId).update(payload);
   } else {
     itemsRef.push().set(payload);
   }
-  closeModal("itemModalOverlay");
-  toast(editingItemId ? "Item updated" : "Item added", "ok");
+  toast(wasEditing ? "Item updated" : "Item added", "ok");
+
+  if (keepOpen && !wasEditing) {
+    // Quick-add mode: clear the name/components for the next item, keep
+    // category and temp settings as-is since catering menus often add
+    // several similar items (same course/category) back to back.
+    document.getElementById("itemNameInput").value = "";
+    pendingComponents = [];
+    renderComponentChips();
+    document.getElementById("itemNameInput").focus();
+  } else {
+    closeModal("itemModalOverlay");
+  }
 }
 
 function deleteItem(itemId) {
@@ -1692,6 +1717,11 @@ document.getElementById("qcSubmitBtn").addEventListener("click", () => {
 
   if (isManagerRole && !boothHasManager(booth, loggedInManager.name)) {
     toast("That booth isn't assigned to you", "err");
+    return;
+  }
+
+  if (isManagerRole && !isBoothOpen(booth)) {
+    toast("This booth is currently marked closed", "err");
     return;
   }
 
@@ -2335,6 +2365,21 @@ function toggleFacilityOpen() {
   const nowOpen = !isFacilityOpen(currentFacilityId);
   facilityMetaRef.child(currentFacilityId).update({ isOpen: nowOpen }).then(() => {
     toast(nowOpen ? "Facility marked OPEN" : "Facility marked CLOSED", "ok");
+  });
+}
+
+/* ---------------- Booth-level Open/Closed (finer-grained than facility) ---------------- */
+function isBoothOpen(booth) {
+  // Defaults to OPEN unless explicitly closed — same non-breaking pattern as facility status.
+  return !(booth && booth.isOpen === false);
+}
+
+function toggleBoothOpen(boothId) {
+  const booth = boothsData[boothId];
+  if (!booth) return;
+  const nowOpen = !isBoothOpen(booth);
+  boothsRef().child(boothId).update({ isOpen: nowOpen }).then(() => {
+    toast(nowOpen ? "Booth marked OPEN" : "Booth marked CLOSED", "ok");
   });
 }
 
