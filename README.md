@@ -1,4 +1,4 @@
-# PRFQC — Multi-Facility Quality Control Tracker
+# Faire Food QC — Multi-Facility Quality Control Tracker
 
 Live at: **https://foodqc.lancelotbiz.com/**
 
