@@ -575,6 +575,7 @@
   <button data-tab="boothsView" style="display:none;">Booths &amp; Menus</button>
   <button data-tab="zoneManagersView" style="display:none;">Zone Managers</button>
   <button data-tab="historyView">Check Log</button>
+  <button data-tab="notesView">Staff Notes</button>
   <button data-tab="facilitiesView" style="display:none;">Facilities</button>
   <button data-tab="superadminsView" style="display:none;">Superadmins</button>
   <button data-tab="dashboardView" style="display:none;">Dashboard</button>
@@ -740,6 +741,21 @@
     <div id="historyTableWrap"></div>
   </section>
 
+  <!-- ===================== STAFF NOTES VIEW ===================== -->
+  <section id="notesView" class="view">
+    <div class="section-head">
+      <h2>Staff Notes</h2>
+    </div>
+
+    <div class="zm-box" id="notesComposerBox" style="flex-direction:column; align-items:stretch; display:none;">
+      <span class="label">Post a Note</span>
+      <textarea id="newNoteText" placeholder="Anything staff should know — schedule changes, weather, reminders…" style="width:100%; min-height:70px; padding:10px; border:1px solid var(--line); border-radius:6px; font-family:'Inter',sans-serif; font-size:.9rem; margin:8px 0;"></textarea>
+      <button class="btn btn-primary btn-sm" style="align-self:flex-start;" onclick="postStaffNote()">Post Note</button>
+    </div>
+
+    <div id="notesListWrap"></div>
+  </section>
+
   <!-- ===================== FACILITIES VIEW (Superadmin only) ===================== -->
   <section id="facilitiesView" class="view">
     <div class="section-head">
@@ -881,6 +897,7 @@ const facilityMetaRef = db ? db.ref("qc/facilityMeta") : null;
 function boothsRef() { return (db && currentFacilityId) ? db.ref("qc/facilities/" + currentFacilityId + "/booths") : null; }
 function checksRef() { return (db && currentFacilityId) ? db.ref("qc/facilities/" + currentFacilityId + "/checks") : null; }
 function zmRef() { return (db && currentFacilityId) ? db.ref("qc/facilityManagers/" + currentFacilityId) : null; }
+function notesRef() { return (db && currentFacilityId) ? db.ref("qc/facilities/" + currentFacilityId + "/notes") : null; }
 
 let currentFacilityId = null;
 let facilityMetaData = {};
@@ -890,6 +907,8 @@ let activeBoothsListener = null;
 let activeZmListener = null;
 let activeChecksListener = null;
 let activeFacilityMetaListener = null;
+let activeNotesListener = null;
+let notesData = {};
 
 let boothsData = {};
 let zoneManagersData = {};
@@ -1256,6 +1275,15 @@ function attachFacilityListeners() {
     activeChecksListener = cr;
   }
 
+  const nr = notesRef();
+  if (nr) {
+    nr.limitToLast(200).on("value", (snap) => {
+      notesData = snap.val() || {};
+      renderStaffNotes();
+    });
+    activeNotesListener = nr;
+  }
+
   if (db && currentFacilityId) {
     const fmr = db.ref("qc/facilityMeta/" + currentFacilityId);
     fmr.on("value", (snap) => {
@@ -1272,18 +1300,22 @@ function detachFacilityListeners() {
   if (activeZmListener) activeZmListener.off();
   if (activeChecksListener) activeChecksListener.off();
   if (activeFacilityMetaListener) activeFacilityMetaListener.off();
+  if (activeNotesListener) activeNotesListener.off();
   activeBoothsListener = null;
   activeZmListener = null;
   activeChecksListener = null;
   activeFacilityMetaListener = null;
+  activeNotesListener = null;
   boothsData = {};
   zoneManagersData = {};
   checksData = {};
+  notesData = {};
   renderBoothGrid();
   populateHistoryFilter();
   renderZmAssignTable();
   renderManagerPinTable();
   renderHistory();
+  renderStaffNotes();
 }
 
 function renderBoothGrid() {
@@ -2381,6 +2413,65 @@ function toggleBoothOpen(boothId) {
   boothsRef().child(boothId).update({ isOpen: nowOpen }).then(() => {
     toast(nowOpen ? "Booth marked OPEN" : "Booth marked CLOSED", "ok");
   });
+}
+
+/* ---------------- Staff Notes ---------------- */
+function canPostStaffNotes() {
+  return !!loggedInManager && (loggedInManager.role === "admin" || loggedInManager.role === "superadmin");
+}
+
+function renderStaffNotes() {
+  const composer = document.getElementById("notesComposerBox");
+  if (composer) composer.style.display = canPostStaffNotes() ? "flex" : "none";
+
+  const wrap = document.getElementById("notesListWrap");
+  if (!wrap) return;
+  const entries = Object.entries(notesData || {});
+  if (!entries.length) {
+    wrap.innerHTML = `<div class="empty">No notes yet.</div>`;
+    return;
+  }
+  entries.sort((a, b) => (b[1].postedAt || 0) - (a[1].postedAt || 0));
+
+  wrap.innerHTML = entries.map(([id, n]) => {
+    const when = n.postedAt ? new Date(n.postedAt).toLocaleString() : "";
+    const roleTag = n.postedByRole === "admin" ? `<span class="tag" style="background:var(--copper); color:#fff;">Admin</span>`
+      : n.postedByRole === "superadmin" ? `<span class="tag" style="background:var(--ink); color:var(--parchment);">Superadmin</span>`
+      : "";
+    const canDelete = canPostStaffNotes();
+    return `
+      <div class="booth-card" style="margin-bottom:12px;">
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px;">
+          <div style="font-size:.95rem; white-space:pre-wrap; flex:1;">${escapeHtml(n.text || "")}</div>
+          ${canDelete ? `<button class="btn btn-ghost btn-sm" onclick="deleteStaffNote('${id}')" style="flex:none;">Delete</button>` : ""}
+        </div>
+        <div class="temp-hint" style="margin-top:8px;">${escapeHtml(n.postedBy || "Someone")} ${roleTag} · ${escapeHtml(when)}</div>
+      </div>`;
+  }).join("");
+}
+
+function postStaffNote() {
+  if (!canPostStaffNotes()) { toast("Only Admins and Superadmins can post notes", "err"); return; }
+  const textEl = document.getElementById("newNoteText");
+  const text = textEl.value.trim();
+  if (!text) { toast("Write something first", "err"); return; }
+  if (!notesRef()) { toast("Not connected yet — try again in a moment", "err"); return; }
+
+  notesRef().push().set({
+    text,
+    postedBy: loggedInManager.name,
+    postedByRole: loggedInManager.role,
+    postedAt: Date.now()
+  }).then(() => {
+    textEl.value = "";
+    toast("Note posted", "ok");
+  });
+}
+
+function deleteStaffNote(noteId) {
+  if (!canPostStaffNotes()) return;
+  if (!confirm("Delete this note?")) return;
+  notesRef().child(noteId).remove();
 }
 
 /* ---------------- Utility ---------------- */
