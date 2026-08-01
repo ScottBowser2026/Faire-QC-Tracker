@@ -771,6 +771,14 @@
     <div class="section-head">
       <h2>Superadmins</h2>
     </div>
+
+    <div class="zm-box" id="smsToggleBox" style="border-left-color:var(--copper);">
+      <span class="label">SMS Alerts</span>
+      <span id="smsStatusLabel" style="font-weight:700;"></span>
+      <button class="btn btn-secondary btn-sm" onclick="toggleSmsAlerts()" id="smsToggleBtn"></button>
+      <span class="temp-hint">Controls all text alerts system-wide (reminders, overdue booths, failed checks) across every facility.</span>
+    </div>
+
     <div class="zm-box">
       <span class="label">Add New Superadmin</span>
       <input type="text" id="newSuName" placeholder="e.g. Scott Bowser" style="max-width:150px;">
@@ -2384,6 +2392,21 @@ let superadminsData = {};
 
 function renderSuperadminsTab() {
   if (!superadminsRef) return;
+
+  if (db) {
+    db.ref("qc/smsSettings/enabled").on("value", (snap) => {
+      const enabled = snap.val() !== false; // defaults to ON unless explicitly disabled
+      const label = document.getElementById("smsStatusLabel");
+      const btn = document.getElementById("smsToggleBtn");
+      if (label && btn) {
+        label.textContent = enabled ? "ON — texts are sending" : "SUSPENDED — no texts will send";
+        label.style.color = enabled ? "var(--green)" : "var(--red)";
+        btn.textContent = enabled ? "Suspend Texting" : "Resume Texting";
+        btn.className = enabled ? "btn btn-danger btn-sm" : "btn btn-primary btn-sm";
+      }
+    });
+  }
+
   superadminsRef.on("value", (snap) => {
     superadminsData = snap.val() || {};
     const body = document.getElementById("superadminsBody");
@@ -2444,6 +2467,17 @@ function resetSuperadminPin(key) {
   if (newPin.trim().length < 4) { toast("PIN must be at least 4 digits", "err"); return; }
   superadminsRef.child(key).update({ pin: newPin.trim() });
   toast("PIN updated", "ok");
+}
+
+function toggleSmsAlerts() {
+  if (!db) return;
+  db.ref("qc/smsSettings/enabled").once("value").then(snap => {
+    const currentlyEnabled = snap.val() !== false;
+    const nowEnabled = !currentlyEnabled;
+    db.ref("qc/smsSettings/enabled").set(nowEnabled).then(() => {
+      toast(nowEnabled ? "Texting resumed" : "Texting suspended system-wide", "ok");
+    });
+  });
 }
 
 /* ===================================================================
