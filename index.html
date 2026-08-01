@@ -937,27 +937,40 @@ function attemptLogin() {
   if (!db) { errEl.textContent = "Not connected yet — try again in a moment."; return; }
   errEl.textContent = "Checking…";
 
-  superadminsRef.once("value").then(snap => {
-    const supers = snap.val() || {};
-    const suMatch = Object.entries(supers).find(([k, e]) =>
-      e && e.pin !== undefined && e.pin !== null && String(e.pin) === pin
-    );
-    if (suMatch) {
-      return loginAsSuperadmin(suMatch[0], suMatch[1]);
-    }
+  hashPin(pin).then(pinHash => {
+    return superadminsRef.once("value").then(snap => {
+      const supers = snap.val() || {};
 
-    return db.ref("qc/facilityManagers").once("value").then(facSnap => {
-      const allManagers = facSnap.val() || {};
-      for (const [fid, managers] of Object.entries(allManagers)) {
-        const match = Object.entries(managers || {}).find(([k, e]) =>
-          e && e.pin !== undefined && e.pin !== null && String(e.pin) === pin
+      // New hash-based match first.
+      let suMatch = Object.entries(supers).find(([k, e]) => e && e.pin === pinHash);
+      // Legacy plaintext fallback — matches old un-hashed records, then upgrades them.
+      if (!suMatch) {
+        suMatch = Object.entries(supers).find(([k, e]) =>
+          e && e.pin !== undefined && e.pin !== null && !looksLikeHash(e.pin) && String(e.pin) === pin
         );
-        if (match) {
-          loginAsFacilityUser(fid, match[0], match[1]);
-          return;
-        }
+        if (suMatch) superadminsRef.child(suMatch[0]).update({ pin: pinHash });
       }
-      errEl.textContent = "PIN not recognized. Try again or see your F&B Director.";
+      if (suMatch) {
+        return loginAsSuperadmin(suMatch[0], suMatch[1]);
+      }
+
+      return db.ref("qc/facilityManagers").once("value").then(facSnap => {
+        const allManagers = facSnap.val() || {};
+        for (const [fid, managers] of Object.entries(allManagers)) {
+          let match = Object.entries(managers || {}).find(([k, e]) => e && e.pin === pinHash);
+          if (!match) {
+            match = Object.entries(managers || {}).find(([k, e]) =>
+              e && e.pin !== undefined && e.pin !== null && !looksLikeHash(e.pin) && String(e.pin) === pin
+            );
+            if (match) db.ref("qc/facilityManagers/" + fid + "/" + match[0]).update({ pin: pinHash });
+          }
+          if (match) {
+            loginAsFacilityUser(fid, match[0], match[1]);
+            return;
+          }
+        }
+        errEl.textContent = "PIN not recognized. Try again or see your F&B Director.";
+      });
     });
   }).catch(err => {
     console.error(err);
@@ -1141,25 +1154,27 @@ function requestPinReset() {
     }
 
     const newPin = generateRandomPin();
-    if (found.scope === "superadmin") {
-      superadminsRef.child(found.key).update({ pin: newPin });
-    } else {
-      db.ref("qc/facilityManagers/" + found.facilityId + "/" + found.key).update({ pin: newPin });
-    }
+    hashPin(newPin).then(pinHash => {
+      if (found.scope === "superadmin") {
+        superadminsRef.child(found.key).update({ pin: pinHash });
+      } else {
+        db.ref("qc/facilityManagers/" + found.facilityId + "/" + found.key).update({ pin: pinHash });
+      }
 
-    if (window.emailjs && !EMAILJS_PIN_RESET_TEMPLATE_ID.startsWith("YOUR-")) {
-      emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_PIN_RESET_TEMPLATE_ID, {
-        to_email: found.entry.email,
-        manager_name: found.entry.name,
-        new_pin: newPin
-      }).catch(err => console.error("PIN reset email failed", err));
-    } else {
-      console.warn("PIN reset EmailJS template not configured — PIN was reset but no email was sent.");
-    }
+      if (window.emailjs && !EMAILJS_PIN_RESET_TEMPLATE_ID.startsWith("YOUR-")) {
+        emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_PIN_RESET_TEMPLATE_ID, {
+          to_email: found.entry.email,
+          manager_name: found.entry.name,
+          new_pin: newPin
+        }).catch(err => console.error("PIN reset email failed", err));
+      } else {
+        console.warn("PIN reset EmailJS template not configured — PIN was reset but no email was sent.");
+      }
 
-    msgEl.style.color = "var(--green)";
-    msgEl.textContent = genericMsg;
-    btn.disabled = false;
+      msgEl.style.color = "var(--green)";
+      msgEl.textContent = genericMsg;
+      btn.disabled = false;
+    });
   }).catch(err => {
     console.error(err);
     msgEl.style.color = "var(--red)";
@@ -2151,13 +2166,15 @@ function addNewZoneManager() {
   if (!name) { toast("Enter a name first", "err"); return; }
   if (!pin || pin.length < 4) { toast("Enter a PIN of at least 4 digits", "err"); return; }
   if (!zmRef()) { toast("Firebase not configured yet", "err"); return; }
-  zmRef().child(safeZmKey(name)).set({ name, pin, role, phone, email });
-  nameInput.value = "";
-  emailInput.value = "";
-  phoneInput.value = "";
-  pinInput.value = "";
-  roleInput.value = "manager";
-  toast("Zone Manager added", "ok");
+  hashPin(pin).then(pinHash => {
+    zmRef().child(safeZmKey(name)).set({ name, pin: pinHash, role, phone, email });
+    nameInput.value = "";
+    emailInput.value = "";
+    phoneInput.value = "";
+    pinInput.value = "";
+    roleInput.value = "manager";
+    toast("Zone Manager added", "ok");
+  });
 }
 
 function renderManagerPinTable() {
@@ -2176,7 +2193,7 @@ function renderManagerPinTable() {
         <td>${escapeHtml(f.name)}</td>
         <td class="mono">${escapeHtml(f.email || "—not set—")}</td>
         <td class="mono">${escapeHtml(f.phone || "—not set—")}</td>
-        <td class="mono">${escapeHtml(f.pin || "—not set—")}</td>
+        <td class="mono">${f.pin ? "•••• (set)" : "—not set—"}</td>
         <td>${roleLabel}</td>
         <td style="display:flex; gap:6px; flex-wrap:wrap;">
           <button class="btn btn-ghost btn-sm" onclick="editManagerEmail('${key}')">Edit Email</button>
@@ -2248,8 +2265,10 @@ function resetManagerPin(key) {
   const newPin = prompt("Enter new PIN (4+ digits) for " + f.name + ":");
   if (!newPin) return;
   if (newPin.trim().length < 4) { toast("PIN must be at least 4 digits", "err"); return; }
-  saveManagerRecord(key, { pin: newPin.trim() });
-  toast("PIN updated", "ok");
+  hashPin(newPin.trim()).then(pinHash => {
+    saveManagerRecord(key, { pin: pinHash });
+    toast("PIN updated", "ok");
+  });
 }
 
 function toggleSelectAllBooths() {
@@ -2327,16 +2346,31 @@ function renderFacilitiesTab() {
   }
   grid.innerHTML = ids.map(id => {
     const meta = facilityMetaData[id] || {};
+    const smsOn = meta.smsEnabled !== false;
     return `
       <div class="booth-card">
-        <h3>${escapeHtml(meta.name || id)}</h3>
+        <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+          <h3 style="margin-bottom:2px;">${escapeHtml(meta.name || id)}</h3>
+          <span class="tag ${smsOn ? "no-temp" : "temp-req"}" style="flex:none;">SMS ${smsOn ? "ON" : "OFF"}</span>
+        </div>
         <div class="zm" style="margin-bottom:12px;">ID: <b>${escapeHtml(id)}</b></div>
         <div class="btn-row">
           <button class="btn btn-secondary btn-sm" onclick="switchToFacilityFromTab('${id}')">Switch To</button>
           <button class="btn btn-ghost btn-sm" onclick="renameFacility('${id}')">Rename</button>
+          <button class="btn ${smsOn ? "btn-danger" : "btn-primary"} btn-sm" onclick="toggleFacilitySms('${id}')">${smsOn ? "Suspend SMS" : "Resume SMS"}</button>
         </div>
       </div>`;
   }).join("");
+}
+
+function toggleFacilitySms(id) {
+  const meta = facilityMetaData[id] || {};
+  const nowOn = !(meta.smsEnabled !== false);
+  facilityMetaRef.child(id).update({ smsEnabled: nowOn }).then(() => {
+    facilityMetaData[id] = Object.assign({}, meta, { smsEnabled: nowOn });
+    renderFacilitiesTab();
+    toast(`SMS ${nowOn ? "resumed" : "suspended"} for ${meta.name || id}`, "ok");
+  });
 }
 
 function renameFacility(id) {
@@ -2422,7 +2456,7 @@ function renderSuperadminsTab() {
           <td>${escapeHtml(e.name || "")}</td>
           <td class="mono">${escapeHtml(e.email || "—not set—")}</td>
           <td class="mono">${escapeHtml(e.phone || "—not set—")}</td>
-          <td class="mono">${escapeHtml(e.pin || "—not set—")}</td>
+          <td class="mono">${e.pin ? "•••• (set)" : "—not set—"}</td>
           <td style="display:flex; gap:6px; flex-wrap:wrap;">
             <button class="btn btn-ghost btn-sm" onclick="editSuperadminField('${key}','name','Name')">Edit Name</button>
             <button class="btn btn-ghost btn-sm" onclick="editSuperadminField('${key}','email','Email')">Edit Email</button>
@@ -2454,9 +2488,11 @@ function addNewSuperadmin() {
   if (!name) { toast("Enter a name first", "err"); return; }
   if (!pin || pin.length < 4) { toast("Enter a PIN of at least 4 digits", "err"); return; }
   const key = name.replace(/[.#$/\[\]]/g, "_").replace(/\s+/g, "_");
-  superadminsRef.child(key).set({ name, email, phone, pin }).then(() => {
-    nameInput.value = ""; emailInput.value = ""; phoneInput.value = ""; pinInput.value = "";
-    toast("Superadmin added", "ok");
+  hashPin(pin).then(pinHash => {
+    superadminsRef.child(key).set({ name, email, phone, pin: pinHash }).then(() => {
+      nameInput.value = ""; emailInput.value = ""; phoneInput.value = ""; pinInput.value = "";
+      toast("Superadmin added", "ok");
+    });
   });
 }
 
@@ -2465,8 +2501,10 @@ function resetSuperadminPin(key) {
   const newPin = prompt("Enter new PIN (4+ digits) for " + (e.name || "this superadmin") + ":");
   if (!newPin) return;
   if (newPin.trim().length < 4) { toast("PIN must be at least 4 digits", "err"); return; }
-  superadminsRef.child(key).update({ pin: newPin.trim() });
-  toast("PIN updated", "ok");
+  hashPin(newPin.trim()).then(pinHash => {
+    superadminsRef.child(key).update({ pin: pinHash });
+    toast("PIN updated", "ok");
+  });
 }
 
 function toggleSmsAlerts() {
@@ -2671,6 +2709,21 @@ function deleteStaffNote(noteId) {
   if (!canPostStaffNotes()) return;
   if (!confirm("Delete this note?")) return;
   notesRef().child(noteId).remove();
+}
+
+/* ---------------- PIN hashing (SHA-256, via the browser's built-in Web Crypto API) ----------------
+   PINs are never stored in plain text. Every place a PIN gets set writes only
+   this hash to Firebase; login re-hashes whatever's typed and compares hashes.
+   Legacy plaintext PINs (from before this change) still log in via a fallback
+   check below, and get silently upgraded to a hash on that first successful login. */
+async function hashPin(pin) {
+  const data = new TextEncoder().encode(String(pin));
+  const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+  return Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, "0")).join("");
+}
+
+function looksLikeHash(value) {
+  return typeof value === "string" && /^[0-9a-f]{64}$/i.test(value);
 }
 
 /* ---------------- Utility ---------------- */
