@@ -1130,7 +1130,10 @@ function finishLogin() {
     renderFacilitySwitcher();
     renderFacilitiesTab();
     renderSuperadminsTab();
-    attachDashboardListeners();
+    // Dashboard is NOT auto-loaded here — it pulls check history (with
+    // photos) across EVERY facility at once, by far the heaviest data
+    // pull in the app. It only loads once the Dashboard tab is actually
+    // opened, via the tab click handler below.
   } else {
     facilitiesTab.style.display = "none";
     superadminsTab.style.display = "none";
@@ -1351,7 +1354,8 @@ document.querySelectorAll("nav.tabs button").forEach(btn => {
     document.querySelectorAll(".view").forEach(v => v.classList.remove("active"));
     btn.classList.add("active");
     document.getElementById(btn.dataset.tab).classList.add("active");
-    if (btn.dataset.tab === "historyView") renderHistory();
+    if (btn.dataset.tab === "historyView") attachChecksListenerIfNeeded();
+    if (btn.dataset.tab === "dashboardView") attachDashboardListenersIfNeeded();
   });
 });
 
@@ -1398,14 +1402,11 @@ function attachFacilityListeners() {
     activeZmListener = zr;
   }
 
-  const cr = checksRef();
-  if (cr) {
-    cr.limitToLast(500).on("value", (snap) => {
-      checksData = snap.val() || {};
-      renderHistory();
-    });
-    activeChecksListener = cr;
-  }
+  // Check Log is intentionally NOT auto-loaded here — it's the single
+  // biggest data cost in the app (full check history, each with an
+  // embedded photo). It only loads when someone actually opens that tab,
+  // via attachChecksListener() below — keeps data usage lean for the
+  // common case of just submitting checks in the field.
 
   const nr = notesRef();
   if (nr) {
@@ -1449,6 +1450,21 @@ function detachFacilityListeners() {
   renderStaffNotes();
 }
 
+// Only pulls check history (and the photo attached to every check) once
+// someone actually opens the Check Log tab — this is the single biggest
+// data cost in the app, so it stays off by default to keep routine check
+// submission lean on a limited connection.
+function attachChecksListenerIfNeeded() {
+  if (activeChecksListener) { renderHistory(); return; } // already loaded this session
+  const cr = checksRef();
+  if (!cr) return;
+  cr.limitToLast(150).on("value", (snap) => {
+    checksData = snap.val() || {};
+    renderHistory();
+  });
+  activeChecksListener = cr;
+}
+
 let collapsedBoothGroups = {}; // { groupName: true/false }
 
 function getBoothType(booth) {
@@ -1470,6 +1486,11 @@ function renderBoothGrid() {
     const type = getBoothType(boothsData[id]);
     groups[type] = groups[type] || [];
     groups[type].push(id);
+  });
+
+  // Alphabetize booths within each group by name.
+  Object.values(groups).forEach(groupIds => {
+    groupIds.sort((a, b) => (boothsData[a].name || "").localeCompare(boothsData[b].name || ""));
   });
 
   const groupNames = Object.keys(groups).sort((a, b) => {
@@ -1627,6 +1648,7 @@ function populateBoothSelect() {
     sel.disabled = true;
     return;
   }
+  ids.sort((a, b) => (boothsData[a].name || "").localeCompare(boothsData[b].name || ""));
   sel.disabled = false;
   sel.innerHTML = `<option value="">Select a booth…</option>` + ids.map(id =>
     `<option value="${id}">${escapeHtml(boothsData[id].name || "Unnamed Booth")}</option>`
@@ -1637,7 +1659,7 @@ function populateBoothSelect() {
 function populateHistoryFilter() {
   const sel = document.getElementById("historyBoothFilter");
   const current = sel.value;
-  const ids = Object.keys(boothsData);
+  const ids = Object.keys(boothsData).sort((a, b) => (boothsData[a].name || "").localeCompare(boothsData[b].name || ""));
   sel.innerHTML = `<option value="">All Booths</option>` + ids.map(id =>
     `<option value="${id}">${escapeHtml(boothsData[id].name || "Unnamed Booth")}</option>`
   ).join("");
@@ -2337,7 +2359,7 @@ function resolveCheck(checkId) {
 function renderZmAssignTable() {
   const body = document.getElementById("zmAssignBody");
   if (!body) return;
-  const ids = Object.keys(boothsData);
+  const ids = Object.keys(boothsData).sort((a, b) => (boothsData[a].name || "").localeCompare(boothsData[b].name || ""));
   body.innerHTML = ids.map(id => {
     const b = boothsData[id];
     const names = getBoothManagerNames(b);
@@ -2663,7 +2685,7 @@ function addNewFacility() {
     facilityMetaData[rawId] = { name };
     renderFacilitySwitcher();
     renderFacilitiesTab();
-    attachDashboardListeners();
+    if (dashboardHasLoadedOnce) attachDashboardListeners(); // only refresh if it's actively being viewed
     idInput.value = "";
     nameInput.value = "";
     toast("Facility added", "ok");
@@ -2776,6 +2798,12 @@ const DASH_OVERDUE_MINUTES = 120; // matches the SMS overdue threshold
 let dashboardListeners = {}; // facilityId -> { boothsRef, checksRef }
 let dashboardData = {};      // facilityId -> { booths, checks }
 
+let dashboardHasLoadedOnce = false;
+function attachDashboardListenersIfNeeded() {
+  if (dashboardHasLoadedOnce) { renderDashboard(); return; } // already loaded this session
+  attachDashboardListeners();
+}
+
 function attachDashboardListeners() {
   detachDashboardListeners();
   Object.keys(facilityMetaData).forEach(fid => {
@@ -2787,7 +2815,10 @@ function attachDashboardListeners() {
       renderDashboard();
     });
 
-    const cr = db.ref("qc/facilities/" + fid + "/checks").limitToLast(500);
+    // Only pulling enough recent checks to compute today's pass/fail counts
+    // and detect overdue booths — doesn't need the full history like the
+    // Check Log tab does, so this stays much smaller.
+    const cr = db.ref("qc/facilities/" + fid + "/checks").limitToLast(100);
     cr.on("value", (snap) => {
       dashboardData[fid].checks = snap.val() || {};
       renderDashboard();
@@ -2795,6 +2826,7 @@ function attachDashboardListeners() {
 
     dashboardListeners[fid] = { boothsRef: br, checksRef: cr };
   });
+  dashboardHasLoadedOnce = true;
   renderDashboard();
 }
 
@@ -2805,6 +2837,7 @@ function detachDashboardListeners() {
   });
   dashboardListeners = {};
   dashboardData = {};
+  dashboardHasLoadedOnce = false;
 }
 
 function isSameLocalDay(ts, ref) {
