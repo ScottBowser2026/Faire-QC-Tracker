@@ -558,6 +558,15 @@
   </div>
 </div>
 
+<div class="modal-overlay" id="photoViewerOverlay" style="z-index:450; background:rgba(31,42,36,.92);" onclick="closePhotoModal(event)">
+  <div style="max-width:min(90vw, 700px); text-align:center;">
+    <img id="photoViewerImg" src="" style="max-width:100%; max-height:80vh; border-radius:8px; box-shadow:0 10px 40px rgba(0,0,0,.5);">
+    <div style="margin-top:14px;">
+      <button class="btn btn-secondary btn-sm" onclick="closePhotoModal(event)">Close</button>
+    </div>
+  </div>
+</div>
+
 <header>
   <h1><span class="crest">Q</span> Faire Food QC</h1>
   <div style="display:flex; align-items:center; gap:8px;">
@@ -2298,7 +2307,7 @@ function renderHistory() {
             <td data-label="Checked By">${escapeHtml(r.checkedBy || "")}</td>
             <td class="mono" data-label="Temp">${r.temp !== null && r.temp !== undefined ? r.temp + "°F" : "—"}</td>
             <td data-label="Status"><span class="badge ${r.status}">${r.status === "na" ? "LOGGED" : r.status.toUpperCase()}</span></td>
-            <td data-label="Photo">${r.photoUrl ? `<a href="${r.photoUrl}" target="_blank" rel="noopener"><img src="${r.photoUrl}" style="width:44px;height:44px;object-fit:cover;border-radius:5px;border:1px solid var(--line);"></a>` : "—"}</td>
+            <td data-label="Photo">${r.photoUrl ? `<img src="${r.photoUrl}" onclick="openPhotoModal('${r._id}')" style="width:44px;height:44px;object-fit:cover;border-radius:5px;border:1px solid var(--line);cursor:pointer;" title="Click to view full size">` : "—"}</td>
             <td data-label="Notes">${escapeHtml(r.notes || "")}</td>
             <td data-label="Resolution">${renderResolutionCell(r)}</td>
             ${isSuperadminUser ? `<td data-label="Delete"><button class="btn btn-danger btn-sm" onclick="deleteCheckRow('${r._id}')">Delete</button></td>` : ""}
@@ -2323,6 +2332,19 @@ function clearAllChecks() {
   checksRef().remove().then(() => {
     toast(`Cleared ${count} check(s) for ${facilityLabel}`, "ok");
   });
+}
+
+function openPhotoModal(checkId) {
+  const r = checksData[checkId];
+  if (!r || !r.photoUrl) return;
+  document.getElementById("photoViewerImg").src = r.photoUrl;
+  document.getElementById("photoViewerOverlay").classList.add("show");
+}
+
+function closePhotoModal(e) {
+  // Only close when clicking the dark backdrop or Close button, not the image itself.
+  if (e && e.target && e.target.tagName === "IMG") return;
+  document.getElementById("photoViewerOverlay").classList.remove("show");
 }
 
 function renderResolutionCell(r) {
