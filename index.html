@@ -2594,6 +2594,7 @@ function renderDashboard() {
 
     const overdueBooths = Object.entries(booths).filter(([bid, b]) => {
       if (!b || getBoothManagerNames(b).length === 0) return false;
+      if (!isBoothOpen(b)) return false; // closed booths aren't expected to be checked
       const last = lastCheckByBooth[bid] || 0;
       return (now - last) / 60000 >= DASH_OVERDUE_MINUTES;
     });
