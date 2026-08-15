@@ -565,6 +565,7 @@
       <select id="facilitySwitcherSelect" style="padding:6px 8px; border-radius:6px; border:1px solid rgba(255,255,255,0.25); background:var(--ink-soft); color:var(--parchment); font-size:.85rem;"></select>
     </span>
     <span id="loggedInAs" class="status-pill" style="display:none;"></span>
+    <span id="pendingSyncBadge" class="status-pill" style="display:none; background:rgba(181,101,42,.25); border-color:var(--copper); color:#F0C89A;"></span>
     <button id="logoutBtn" class="btn btn-ghost btn-sm" style="display:none; color:var(--parchment); border-color:rgba(255,255,255,0.3);" onclick="logoutManager()">Log Out</button>
     <span id="connStatus" class="status-pill offline">Connecting…</span>
   </div>
@@ -916,6 +917,7 @@ function notesRef() { return (db && currentFacilityId) ? db.ref("qc/facilities/"
 let currentFacilityId = null;
 let facilityMetaData = {};
 let isSuperadmin = false;
+let isCurrentlyConnected = null; // null = unknown yet, true/false once .info/connected reports
 
 let activeBoothsListener = null;
 let activeZmListener = null;
@@ -937,68 +939,153 @@ function attemptLogin() {
   const pin = document.getElementById("loginPinInput").value.trim();
   const errEl = document.getElementById("loginError");
   if (!pin) { errEl.textContent = "Enter your PIN"; return; }
-  if (!db) { errEl.textContent = "Not connected yet — try again in a moment."; return; }
   errEl.textContent = "Checking…";
 
   hashPin(pin).then(pinHash => {
-    return superadminsRef.once("value").then(snap => {
-      const supers = snap.val() || {};
+    // If we already know we're offline, don't even try a live read — go
+    // straight to the cached directory so there's no hang waiting on a
+    // request that will never complete without a signal.
+    if (isCurrentlyConnected === false || !db) {
+      return attemptOfflineLogin(pin, pinHash, errEl);
+    }
 
-      // New hash-based match first.
-      let suMatch = Object.entries(supers).find(([k, e]) => e && e.pin === pinHash);
-      // Legacy plaintext fallback — matches old un-hashed records, then upgrades them.
-      if (!suMatch) {
-        suMatch = Object.entries(supers).find(([k, e]) =>
-          e && e.pin !== undefined && e.pin !== null && !looksLikeHash(e.pin) && String(e.pin) === pin
-        );
-        if (suMatch) superadminsRef.child(suMatch[0]).update({ pin: pinHash });
-      }
-      if (suMatch) {
-        return loginAsSuperadmin(suMatch[0], suMatch[1]);
-      }
+    // Otherwise try live first, but don't let it hang forever — race it
+    // against a short timeout and fall back to the offline cache if the
+    // connection turns out to be worse than .info/connected has caught up to.
+    const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), 6000));
 
-      return db.ref("qc/facilityManagers").once("value").then(facSnap => {
-        const allManagers = facSnap.val() || {};
-        for (const [fid, managers] of Object.entries(allManagers)) {
-          let match = Object.entries(managers || {}).find(([k, e]) => e && e.pin === pinHash);
-          if (!match) {
-            match = Object.entries(managers || {}).find(([k, e]) =>
-              e && e.pin !== undefined && e.pin !== null && !looksLikeHash(e.pin) && String(e.pin) === pin
-            );
-            if (match) db.ref("qc/facilityManagers/" + fid + "/" + match[0]).update({ pin: pinHash });
-          }
-          if (match) {
-            loginAsFacilityUser(fid, match[0], match[1]);
-            return;
-          }
-        }
-        errEl.textContent = "PIN not recognized. Try again or see your F&B Director.";
-      });
-    });
+    return Promise.race([attemptOnlineLogin(pin, pinHash, errEl), timeout])
+      .catch(() => attemptOfflineLogin(pin, pinHash, errEl));
   }).catch(err => {
     console.error(err);
     errEl.textContent = "Login failed — check your connection and try again.";
   });
 }
 
-function loginAsFacilityUser(facilityId, key, entry) {
+function attemptOnlineLogin(pin, pinHash, errEl) {
+  return superadminsRef.once("value").then(snap => {
+    const supers = snap.val() || {};
+
+    let suMatch = Object.entries(supers).find(([k, e]) => e && e.pin === pinHash);
+    if (!suMatch) {
+      suMatch = Object.entries(supers).find(([k, e]) =>
+        e && e.pin !== undefined && e.pin !== null && !looksLikeHash(e.pin) && String(e.pin) === pin
+      );
+      if (suMatch) superadminsRef.child(suMatch[0]).update({ pin: pinHash });
+    }
+    if (suMatch) {
+      loginAsSuperadmin(suMatch[0], suMatch[1]);
+      return true;
+    }
+
+    return db.ref("qc/facilityManagers").once("value").then(facSnap => {
+      const allManagers = facSnap.val() || {};
+      for (const [fid, managers] of Object.entries(allManagers)) {
+        let match = Object.entries(managers || {}).find(([k, e]) => e && e.pin === pinHash);
+        if (!match) {
+          match = Object.entries(managers || {}).find(([k, e]) =>
+            e && e.pin !== undefined && e.pin !== null && !looksLikeHash(e.pin) && String(e.pin) === pin
+          );
+          if (match) db.ref("qc/facilityManagers/" + fid + "/" + match[0]).update({ pin: pinHash });
+        }
+        if (match) {
+          loginAsFacilityUser(fid, match[0], match[1]);
+          return true;
+        }
+      }
+      errEl.textContent = "PIN not recognized. Try again or see your F&B Director.";
+      return true; // resolved (not an error/timeout) — just no match
+    });
+  });
+}
+
+function attemptOfflineLogin(pin, pinHash, errEl) {
+  const dir = getCachedLoginDirectory();
+  if (!dir) {
+    errEl.textContent = "No connection, and no offline data saved on this device yet. Connect once first, then offline login will work.";
+    return;
+  }
+
+  const supers = dir.superadmins || {};
+  let suMatch = Object.entries(supers).find(([k, e]) => e && e.pin === pinHash);
+  if (!suMatch) {
+    suMatch = Object.entries(supers).find(([k, e]) =>
+      e && e.pin !== undefined && e.pin !== null && !looksLikeHash(e.pin) && String(e.pin) === pin
+    );
+  }
+  if (suMatch) {
+    loginAsSuperadmin(suMatch[0], suMatch[1], dir.facilityMeta);
+    toast("Logged in offline — will sync once connected", "ok");
+    return;
+  }
+
+  const allManagers = dir.facilityManagers || {};
+  for (const [fid, managers] of Object.entries(allManagers)) {
+    let match = Object.entries(managers || {}).find(([k, e]) => e && e.pin === pinHash);
+    if (!match) {
+      match = Object.entries(managers || {}).find(([k, e]) =>
+        e && e.pin !== undefined && e.pin !== null && !looksLikeHash(e.pin) && String(e.pin) === pin
+      );
+    }
+    if (match) {
+      loginAsFacilityUser(fid, match[0], match[1], dir.facilityMeta);
+      toast("Logged in offline — will sync once connected", "ok");
+      return;
+    }
+  }
+  errEl.textContent = "PIN not recognized in offline data. Try again once you have a connection.";
+}
+
+function loginAsFacilityUser(facilityId, key, entry, cachedMeta) {
   currentFacilityId = facilityId;
   isSuperadmin = false;
   loggedInManager = { key, name: entry.name, pin: entry.pin, role: entry.role || "manager", facilityId };
+
+  if (cachedMeta) {
+    facilityMetaData = {};
+    facilityMetaData[facilityId] = cachedMeta[facilityId] || { name: facilityId };
+    boothsData = getCachedBoothsForFacility(facilityId); // populate booth dropdown offline
+    finishLogin();
+    return;
+  }
+
   facilityMetaRef.child(facilityId).once("value").then(snap => {
     facilityMetaData = {};
     facilityMetaData[facilityId] = snap.val() || { name: facilityId };
     finishLogin();
+  }).catch(() => {
+    const dir = getCachedLoginDirectory();
+    facilityMetaData = {};
+    facilityMetaData[facilityId] = (dir && dir.facilityMeta && dir.facilityMeta[facilityId]) || { name: facilityId };
+    boothsData = getCachedBoothsForFacility(facilityId);
+    finishLogin();
   });
 }
 
-function loginAsSuperadmin(key, entry) {
+function loginAsSuperadmin(key, entry, cachedMeta) {
   isSuperadmin = true;
   loggedInManager = { key, name: entry.name, pin: entry.pin, role: "superadmin" };
+
+  if (cachedMeta) {
+    facilityMetaData = cachedMeta;
+    const ids = Object.keys(facilityMetaData);
+    currentFacilityId = ids.length ? ids[0] : null;
+    if (currentFacilityId) boothsData = getCachedBoothsForFacility(currentFacilityId);
+    finishLogin();
+    return;
+  }
+
   facilityMetaRef.once("value").then(snap => {
     facilityMetaData = snap.val() || {};
     const ids = Object.keys(facilityMetaData);
     currentFacilityId = ids.length ? ids[0] : null;
+    finishLogin();
+  }).catch(() => {
+    const dir = getCachedLoginDirectory();
+    facilityMetaData = (dir && dir.facilityMeta) || {};
+    const ids = Object.keys(facilityMetaData);
+    currentFacilityId = ids.length ? ids[0] : null;
+    if (currentFacilityId) boothsData = getCachedBoothsForFacility(currentFacilityId);
     finishLogin();
   });
 }
@@ -1054,6 +1141,8 @@ function finishLogin() {
 
   attachFacilityListeners();
   populateBoothSelect();
+  renderPendingBadge();
+  trySyncPendingQueue();
   toast(`Welcome, ${loggedInManager.name}`, "ok");
 }
 
@@ -1237,13 +1326,23 @@ if (viewCheckId && viewFacilityId && db) {
 if (db) {
   db.ref(".info/connected").on("value", (snap) => {
     const el = document.getElementById("connStatus");
-    if (snap.val() === true) {
+    isCurrentlyConnected = snap.val() === true;
+    if (isCurrentlyConnected) {
       el.textContent = "● Live"; el.className = "status-pill live";
+      trySyncPendingQueue(); // connection just came back — flush anything queued
+      refreshLoginDirectoryCache(); // keep the offline-login cache fresh
     } else {
       el.textContent = "○ Offline"; el.className = "status-pill offline";
     }
   });
 }
+
+// Backup sync attempt every 30s (in case the .info/connected listener
+// misses a transition, e.g. flaky signal flapping on/off quickly), plus
+// one immediately on page load in case there's a leftover queue from
+// before the app was last closed.
+setInterval(trySyncPendingQueue, 30000);
+renderPendingBadge();
 
 /* ---------------- Tabs ---------------- */
 document.querySelectorAll("nav.tabs button").forEach(btn => {
@@ -1278,6 +1377,7 @@ function attachFacilityListeners() {
   if (br) {
     br.on("value", (snap) => {
       boothsData = snap.val() || {};
+      if (currentFacilityId) cacheBoothsForFacility(currentFacilityId, boothsData);
       renderBoothGrid();
       populateBoothSelect();
       if (activeBoothId) renderBoothDetail(activeBoothId);
@@ -1836,6 +1936,140 @@ setDefaultTime();
 
 let compressedPhotoDataUrl = null;
 
+/* ===================================================================
+   OFFLINE QUEUE — checks save to this device first, sync automatically
+   whenever a connection is available. Survives closing the app/tab
+   since it's stored on disk (localStorage), not just in memory.
+   =================================================================== */
+const OFFLINE_QUEUE_KEY = "faireFoodQC_pendingChecks";
+
+function getPendingQueue() {
+  try {
+    return JSON.parse(localStorage.getItem(OFFLINE_QUEUE_KEY) || "[]");
+  } catch (e) {
+    return [];
+  }
+}
+
+function savePendingQueue(queue) {
+  try {
+    localStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(queue));
+  } catch (e) {
+    console.error("Couldn't save offline queue (storage full?)", e);
+    toast("Warning: couldn't save check locally — device storage may be full. Try syncing existing pending checks first.", "err");
+  }
+  renderPendingBadge();
+}
+
+function queueCheckLocally(record) {
+  const queue = getPendingQueue();
+  queue.push({ _localId: "local_" + Date.now() + "_" + Math.random().toString(36).slice(2), record });
+  savePendingQueue(queue);
+}
+
+function renderPendingBadge() {
+  const badge = document.getElementById("pendingSyncBadge");
+  if (!badge) return;
+  const count = getPendingQueue().length;
+  if (count > 0) {
+    badge.style.display = "inline-block";
+    badge.textContent = `${count} pending sync`;
+  } else {
+    badge.style.display = "none";
+  }
+}
+
+let syncInProgress = false;
+function trySyncPendingQueue() {
+  if (syncInProgress) return;
+  if (!db) return;
+  const queue = getPendingQueue();
+  if (!queue.length) return;
+
+  syncInProgress = true;
+  const remaining = [];
+  let syncedCount = 0;
+
+  const attempts = queue.map(item => {
+    const fid = item.record.facilityId;
+    if (!fid) { remaining.push(item); return Promise.resolve(); } // shouldn't happen, but don't lose data
+    const cRef = db.ref("qc/facilities/" + fid + "/checks").push();
+    return cRef.set(item.record).then(() => {
+      syncedCount++;
+      sendEmailNotification(item.record, cRef.key);
+    }).catch(err => {
+      console.error("Sync failed for queued check, will retry later", err);
+      remaining.push(item); // put it back for next attempt
+    });
+  });
+
+  Promise.all(attempts).finally(() => {
+    savePendingQueue(remaining);
+    syncInProgress = false;
+    if (syncedCount > 0) {
+      toast(`Synced ${syncedCount} pending check${syncedCount === 1 ? "" : "s"}`, "ok");
+      renderHistory();
+    }
+  });
+}
+
+/* ===================================================================
+   OFFLINE LOGIN — lets a Zone Manager/Admin/Superadmin log in and see
+   their assigned booths even on a cold app launch with zero signal.
+   Works by caching a lightweight "login directory" (name/pin-hash/role
+   per person) plus each facility's booth list, refreshed to this
+   device's local storage every time there IS a connection. On a
+   genuinely offline login attempt, these caches stand in for a live
+   Firebase read. Once reconnected, live data takes over as normal.
+   =================================================================== */
+const LOGIN_DIRECTORY_KEY = "faireFoodQC_loginDirectory";
+const BOOTHS_CACHE_PREFIX = "faireFoodQC_boothsCache_";
+
+function refreshLoginDirectoryCache() {
+  if (!db) return;
+  Promise.all([
+    db.ref("qc/superadmins").once("value"),
+    db.ref("qc/facilityManagers").once("value"),
+    db.ref("qc/facilityMeta").once("value"),
+  ]).then(([suSnap, fmSnap, metaSnap]) => {
+    const directory = {
+      superadmins: suSnap.val() || {},
+      facilityManagers: fmSnap.val() || {},
+      facilityMeta: metaSnap.val() || {},
+      cachedAt: Date.now()
+    };
+    try {
+      localStorage.setItem(LOGIN_DIRECTORY_KEY, JSON.stringify(directory));
+    } catch (e) {
+      console.error("Couldn't cache login directory", e);
+    }
+  }).catch(err => console.error("Login directory refresh failed", err));
+}
+
+function getCachedLoginDirectory() {
+  try {
+    return JSON.parse(localStorage.getItem(LOGIN_DIRECTORY_KEY) || "null");
+  } catch (e) {
+    return null;
+  }
+}
+
+function cacheBoothsForFacility(facilityId, data) {
+  try {
+    localStorage.setItem(BOOTHS_CACHE_PREFIX + facilityId, JSON.stringify(data));
+  } catch (e) {
+    console.error("Couldn't cache booths for offline use", e);
+  }
+}
+
+function getCachedBoothsForFacility(facilityId) {
+  try {
+    return JSON.parse(localStorage.getItem(BOOTHS_CACHE_PREFIX + facilityId) || "{}");
+  } catch (e) {
+    return {};
+  }
+}
+
 document.getElementById("qcPhoto").addEventListener("change", (e) => {
   const file = e.target.files[0];
   const wrap = document.getElementById("qcPhotoPreviewWrap");
@@ -1944,13 +2178,8 @@ document.getElementById("qcSubmitBtn").addEventListener("click", () => {
     }
   }
 
-  if (!checksRef()) { toast("Firebase not configured yet", "err"); return; }
-
   const submitBtn = document.getElementById("qcSubmitBtn");
   const progressEl = document.getElementById("qcUploadProgress");
-  submitBtn.disabled = true;
-  progressEl.style.display = "block";
-  progressEl.textContent = "Saving check…";
 
   const record = {
     facilityId: currentFacilityId,
@@ -1970,24 +2199,20 @@ document.getElementById("qcSubmitBtn").addEventListener("click", () => {
     submittedAt: Date.now()
   };
 
-  const newCheckRef = checksRef().push();
-  const checkId = newCheckRef.key;
-  newCheckRef.set(record).then(() => {
-    toast("Check saved", "ok");
-    sendEmailNotification(record, checkId);
-    document.getElementById("qcTemp").value = "";
-    document.getElementById("qcNotes").value = "";
-    document.getElementById("qcPhoto").value = "";
-    document.getElementById("qcPhotoPreviewWrap").style.display = "none";
-    compressedPhotoDataUrl = null;
-    setDefaultTime();
-  }).catch(err => {
-    console.error(err);
-    toast("Failed to save check", "err");
-  }).finally(() => {
-    submitBtn.disabled = false;
-    progressEl.style.display = "none";
-  });
+  // Save locally FIRST — this always "succeeds" instantly regardless of
+  // connectivity, since it's just writing to the device, not the network.
+  // A background sync (triggered below, and whenever connection returns)
+  // pushes it to Firebase the moment a signal is available.
+  queueCheckLocally(record);
+  toast("Check saved on this device — syncing…", "ok");
+  document.getElementById("qcTemp").value = "";
+  document.getElementById("qcNotes").value = "";
+  document.getElementById("qcPhoto").value = "";
+  document.getElementById("qcPhotoPreviewWrap").style.display = "none";
+  compressedPhotoDataUrl = null;
+  setDefaultTime();
+
+  trySyncPendingQueue();
 });
 
 function sendEmailNotification(record, checkId) {
