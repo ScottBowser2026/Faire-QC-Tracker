@@ -989,6 +989,7 @@ let zoneManagersData = {};
 let checksData = {};
 let activeBoothId = null;
 let loggedInManager = null; // { key, name, pin, role, facilityId }
+let isRestoringSession = false;
 
 /* ===================================================================
    LOGIN GATE — PIN-based Zone Manager login
@@ -1094,6 +1095,58 @@ function attemptOfflineLogin(pin, pinHash, errEl) {
   errEl.textContent = "PIN not recognized in offline data. Try again once you have a connection.";
 }
 
+/* ---------------- Session persistence (survives an unexpected page reload) ----------------
+   Mobile browsers — Safari on iPhone especially — sometimes reload the
+   page after the camera app closes, if the phone is under memory
+   pressure. Without this, that reload would silently drop someone back
+   to the PIN screen mid-check, which looks like getting "kicked out."
+   This saves just enough to silently restore the same session on load,
+   without needing to touch the network at all if there's a cached
+   offline directory available. */
+const SESSION_KEY = "faireFoodQC_session";
+
+function saveSessionToDevice() {
+  if (!loggedInManager) return;
+  const session = {
+    scope: isSuperadmin ? "superadmin" : "facility",
+    key: loggedInManager.key,
+    name: loggedInManager.name,
+    pin: loggedInManager.pin,
+    role: loggedInManager.role,
+    facilityId: loggedInManager.facilityId || null
+  };
+  try {
+    localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+  } catch (e) {
+    console.error("Couldn't persist session", e);
+  }
+}
+
+function clearSessionFromDevice() {
+  try { localStorage.removeItem(SESSION_KEY); } catch (e) { /* ignore */ }
+}
+
+function tryRestoreSessionOnLoad() {
+  let session;
+  try {
+    session = JSON.parse(localStorage.getItem(SESSION_KEY) || "null");
+  } catch (e) {
+    session = null;
+  }
+  if (!session) return false;
+
+  isRestoringSession = true;
+  const dir = getCachedLoginDirectory();
+  const cachedMeta = dir ? dir.facilityMeta : null;
+
+  if (session.scope === "superadmin") {
+    loginAsSuperadmin(session.key, { name: session.name, pin: session.pin, role: "superadmin" }, cachedMeta);
+  } else {
+    loginAsFacilityUser(session.facilityId, session.key, { name: session.name, pin: session.pin, role: session.role }, cachedMeta);
+  }
+  return true;
+}
+
 function loginAsFacilityUser(facilityId, key, entry, cachedMeta) {
   currentFacilityId = facilityId;
   isSuperadmin = false;
@@ -1159,6 +1212,8 @@ function finishLogin() {
   badge.textContent = `${loggedInManager.name}${roleTag}`;
   document.getElementById("logoutBtn").style.display = "inline-flex";
 
+  saveSessionToDevice();
+
   const cb = document.getElementById("qcCheckedBy");
   cb.value = loggedInManager.name;
   cb.readOnly = true;
@@ -1207,7 +1262,8 @@ function finishLogin() {
   populateBoothSelect();
   renderPendingBadge();
   trySyncPendingQueue();
-  toast(`Welcome, ${loggedInManager.name}`, "ok");
+  if (!isRestoringSession) toast(`Welcome, ${loggedInManager.name}`, "ok");
+  isRestoringSession = false;
 }
 
 function logoutManager() {
@@ -1215,6 +1271,7 @@ function logoutManager() {
   isSuperadmin = false;
   currentFacilityId = null;
   facilityMetaData = {};
+  clearSessionFromDevice();
   detachFacilityListeners();
   detachDashboardListeners();
   document.getElementById("loginPinInput").value = "";
@@ -1385,6 +1442,10 @@ if (viewCheckId && viewFacilityId && db) {
     console.error(err);
     document.getElementById("checkViewerContent").innerHTML = `<h3>Error loading check</h3>`;
   });
+} else if (db) {
+  // Normal app load (not a shared check-view link) — silently restore
+  // whoever was last logged in on this device, if anyone.
+  tryRestoreSessionOnLoad();
 }
 
 /* ---------------- Connection status ---------------- */
