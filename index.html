@@ -646,7 +646,17 @@
 
       <div class="field">
         <label>Notes (optional)</label>
-        <textarea id="qcNotes" placeholder="Anything worth flagging…"></textarea>
+        <select id="qcNotesSelect">
+          <option value="">— None —</option>
+          <option value="Reheated to safe temp">Reheated to safe temp</option>
+          <option value="Item discarded">Item discarded</option>
+          <option value="New batch started">New batch started</option>
+          <option value="Equipment issue — reported">Equipment issue — reported</option>
+          <option value="Retested — now passing">Retested — now passing</option>
+          <option value="Routine check — no issue">Routine check — no issue</option>
+          <option value="__other__">Other (type your own)…</option>
+        </select>
+        <textarea id="qcNotesOther" placeholder="Type your note…" style="display:none; margin-top:8px;"></textarea>
       </div>
 
       <div id="qcUploadProgress" style="display:none; font-size:.8rem; color:var(--slate); margin-bottom:10px;">Saving check…</div>
@@ -2591,7 +2601,8 @@ document.getElementById("qcSubmitBtn").addEventListener("click", () => {
   const checkedBy = document.getElementById("qcCheckedBy").value.trim();
   const checkTime = document.getElementById("qcTime").value;
   const tempVal = document.getElementById("qcTemp").value;
-  const notes = document.getElementById("qcNotes").value.trim();
+  const notesSelectVal = document.getElementById("qcNotesSelect").value;
+  const notes = notesSelectVal === "__other__" ? document.getElementById("qcNotesOther").value.trim() : notesSelectVal;
 
   const isManagerRole = loggedInManager.role !== "admin" && loggedInManager.role !== "superadmin";
 
@@ -2657,7 +2668,9 @@ document.getElementById("qcSubmitBtn").addEventListener("click", () => {
   queueCheckLocally(record);
   toast("Check saved on this device — syncing…", "ok");
   document.getElementById("qcTemp").value = "";
-  document.getElementById("qcNotes").value = "";
+  document.getElementById("qcNotesSelect").value = "";
+  document.getElementById("qcNotesOther").value = "";
+  document.getElementById("qcNotesOther").style.display = "none";
   document.getElementById("qcPhoto").value = "";
   document.getElementById("qcPhotoPreviewWrap").style.display = "none";
   compressedPhotoDataUrl = null;
@@ -2698,6 +2711,10 @@ function sendEmailNotification(record, checkId) {
    HISTORY / LOG
    =================================================================== */
 document.getElementById("historyBoothFilter").addEventListener("change", renderHistory);
+document.getElementById("qcNotesSelect").addEventListener("change", (e) => {
+  document.getElementById("qcNotesOther").style.display = e.target.value === "__other__" ? "block" : "none";
+});
+
 document.getElementById("reportDateInput").addEventListener("change", () => {
   renderDailyReport();
   checkForArchive();
