@@ -1,9 +1,12 @@
-const CACHE_NAME = "parf-qc-shell-v1";
+const CACHE_NAME = "faire-food-qc-shell-v2";
 const SHELL_FILES = [
   "./index.html",
   "./manifest.json",
   "./icon-192.png",
-  "./icon-512.png"
+  "./icon-512.png",
+  "./firebase-app-compat.js",
+  "./firebase-database-compat.js",
+  "./emailjs.min.js"
 ];
 
 self.addEventListener("install", (event) => {
@@ -22,8 +25,10 @@ self.addEventListener("activate", (event) => {
   self.clients.claim();
 });
 
-// Only cache-serve the app shell itself. Everything else (Firebase, EmailJS,
-// CDN scripts) goes straight to the network so live data is never stale.
+// Firebase, EmailJS, and the app shell are all cached now (self-hosted,
+// same origin) so the app can genuinely cold-start with zero connection.
+// Live data itself (Firebase reads/writes) still always goes to the
+// network — only these static library/shell files are served from cache.
 self.addEventListener("fetch", (event) => {
   const url = new URL(event.request.url);
   const isShellFile = SHELL_FILES.some((f) => url.pathname.endsWith(f.replace("./", "")));
