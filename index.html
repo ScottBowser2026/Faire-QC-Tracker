@@ -758,8 +758,10 @@
       <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
         <input type="date" id="reportDateInput" style="padding:7px 10px; border:1px solid var(--line); border-radius:6px;">
         <button class="btn btn-secondary btn-sm" onclick="renderDailyReport()">Refresh</button>
+        <button class="btn btn-primary btn-sm" onclick="archiveDailyReport()">📦 Archive This Day</button>
       </div>
     </div>
+    <div id="archiveStatusNote" class="temp-hint" style="margin-bottom:10px;"></div>
 
     <div class="section-head" style="margin-top:8px;">
       <h3 style="margin:0; font-size:1.05rem;">Daily Report — By Booth</h3>
@@ -1720,6 +1722,7 @@ function openReportsTab() {
     dateInput.value = now.getFullYear() + "-" + String(now.getMonth() + 1).padStart(2, "0") + "-" + String(now.getDate()).padStart(2, "0");
   }
   renderDailyReport();
+  checkForArchive();
 }
 
 // Reads the date input as a genuine LOCAL date (avoids the classic
@@ -1882,6 +1885,119 @@ function downloadSiteAssessment() {
     ...rows.map(r => [r.boothName, r.managers, r.count, r.passCount, r.failCount, r.actualRate ? r.actualRate.toFixed(2) : "", r.compliance === null ? "" : r.compliance + "%"])
   ];
   downloadCsv(summaryRows, "site-assessment");
+}
+
+/* ===================================================================
+   DAILY ARCHIVE — a lightweight (no-photo) permanent summary of each
+   day, saved separately from the live checks. This means the daily
+   numbers survive even if live check data is later cleared (Superadmin
+   testing cleanup) or ages out of the 150-record live window — the
+   report for a past day still works because it reads this archive
+   instead of needing the original full check records.
+   =================================================================== */
+function dateKey(dateObj) {
+  return dateObj.getFullYear() + "-" + String(dateObj.getMonth() + 1).padStart(2, "0") + "-" + String(dateObj.getDate()).padStart(2, "0");
+}
+
+function archiveDailyReport() {
+  if (!db || !currentFacilityId) return;
+  const data = computeDailyReportData();
+  const { dateObj, schedule, operatingHours, targetIntervalHours, rows, checksForDay } = data;
+
+  if (!checksForDay.length) {
+    if (!confirm("No checks logged for this day yet. Archive an empty summary anyway?")) return;
+  }
+
+  const totalPass = checksForDay.filter(c => c.status === "pass").length;
+  const totalFail = checksForDay.filter(c => c.status === "fail").length;
+
+  const summary = {
+    facilityName: (facilityMetaData[currentFacilityId] && facilityMetaData[currentFacilityId].name) || currentFacilityId,
+    schedule: schedule || null,
+    operatingHours,
+    targetIntervalHours,
+    totalChecks: checksForDay.length,
+    totalPass,
+    totalFail,
+    archivedAt: Date.now(),
+    booths: rows.map(r => ({
+      boothName: r.boothName,
+      managers: r.managers,
+      hasManager: r.hasManager,
+      isOpenBooth: r.isOpenBooth,
+      count: r.count,
+      passCount: r.passCount,
+      failCount: r.failCount,
+      firstTime: r.firstTime,
+      lastTime: r.lastTime,
+      actualRate: r.actualRate,
+      compliance: r.compliance
+    }))
+  };
+
+  db.ref("qc/facilities/" + currentFacilityId + "/dailyArchives/" + dateKey(dateObj)).set(summary).then(() => {
+    toast("Day archived", "ok");
+    document.getElementById("archiveStatusNote").textContent = `Archived ${new Date(summary.archivedAt).toLocaleString()}`;
+  });
+}
+
+function checkForArchive() {
+  const note = document.getElementById("archiveStatusNote");
+  note.textContent = "";
+  if (!db || !currentFacilityId) return;
+  const dateObj = getReportDate();
+  db.ref("qc/facilities/" + currentFacilityId + "/dailyArchives/" + dateKey(dateObj)).once("value").then(snap => {
+    const archive = snap.val();
+    if (archive) {
+      note.textContent = `This day has an archived summary from ${new Date(archive.archivedAt).toLocaleString()}. ${checksData && Object.values(checksData).some(c => c && isSameLocalCalendarDay(c.submittedAt, dateObj)) ? "Showing live data below (still available)." : "Live check detail is no longer loaded/available — showing the archived summary instead."}`;
+      // If there's no live data for this date, fall back to rendering the archive directly.
+      const hasLiveData = checksData && Object.values(checksData).some(c => c && isSameLocalCalendarDay(c.submittedAt, dateObj));
+      if (!hasLiveData) renderArchivedSummary(archive, dateObj);
+    }
+  });
+}
+
+function renderArchivedSummary(archive, dateObj) {
+  const dailyWrap = document.getElementById("dailyReportWrap");
+  const assessWrap = document.getElementById("siteAssessmentWrap");
+
+  dailyWrap.innerHTML = `
+    <table class="log">
+      <thead><tr>
+        <th>Booth</th><th>Zone Manager(s)</th><th>Checks</th><th>Pass</th><th>Fail</th><th>First</th><th>Last</th><th>Rate (per hr)</th><th>vs Target</th>
+      </tr></thead>
+      <tbody>
+        ${archive.booths.map(r => `
+          <tr>
+            <td data-label="Booth">${escapeHtml(r.boothName)}</td>
+            <td data-label="Zone Manager(s)">${escapeHtml(r.managers)}</td>
+            <td data-label="Checks" class="mono">${r.count}</td>
+            <td data-label="Pass" class="mono">${r.passCount}</td>
+            <td data-label="Fail" class="mono">${r.failCount}</td>
+            <td data-label="First" class="mono">${escapeHtml(r.firstTime)}</td>
+            <td data-label="Last" class="mono">${escapeHtml(r.lastTime)}</td>
+            <td data-label="Rate (per hr)" class="mono">${r.actualRate ? r.actualRate.toFixed(2) : "—"}</td>
+            <td data-label="vs Target">${r.compliance === null || r.compliance === undefined ? "—" : `<span class="badge ${r.compliance >= 80 ? "pass" : r.compliance >= 40 ? "na" : "fail"}">${r.compliance}%</span>`}</td>
+          </tr>`).join("")}
+      </tbody>
+    </table>`;
+
+  const passRate = (archive.totalPass + archive.totalFail) > 0 ? Math.round((archive.totalPass / (archive.totalPass + archive.totalFail)) * 100) : null;
+  const assignedRows = archive.booths.filter(r => r.hasManager && r.isOpenBooth);
+  const compliancePool = assignedRows.filter(r => r.compliance !== null && r.compliance !== undefined);
+  const avgCompliance = compliancePool.length ? Math.round(compliancePool.reduce((s, r) => s + r.compliance, 0) / compliancePool.length) : null;
+
+  assessWrap.innerHTML = `
+    <div class="booth-card">
+      <h3 style="margin-bottom:4px;">${escapeHtml(archive.facilityName)} — ${escapeHtml(dateObj.toLocaleDateString())} <span class="tag" style="background:var(--slate); color:#fff;">ARCHIVED</span></h3>
+      <div class="temp-hint" style="margin-bottom:14px;">${archive.schedule ? `Operating hours: ${archive.schedule.open}–${archive.schedule.close} (${archive.operatingHours.toFixed(1)} hrs) · Target interval: every ${archive.targetIntervalHours} hr(s)` : "No operating hours were configured for this day."}</div>
+      <div class="dash-stats">
+        <div class="dash-stat"><div class="num">${assignedRows.length}</div><div class="lbl">Booths Assigned &amp; Open</div></div>
+        <div class="dash-stat"><div class="num">${archive.totalChecks}</div><div class="lbl">Total Checks</div></div>
+        <div class="dash-stat"><div class="num pass">${passRate === null ? "—" : passRate + "%"}</div><div class="lbl">Pass Rate</div></div>
+        <div class="dash-stat"><div class="num overdue">${avgCompliance === null ? "—" : avgCompliance + "%"}</div><div class="lbl">Avg. Check Frequency Compliance</div></div>
+      </div>
+    </div>`;
 }
 
 function populateBoothSelect() {
@@ -2355,14 +2471,14 @@ document.getElementById("qcPhoto").addEventListener("change", (e) => {
   reader.onload = (ev) => {
     const tempImg = new Image();
     tempImg.onload = () => {
-      const MAX_DIM = 900;
+      const MAX_DIM = 700;
       let w = tempImg.width, h = tempImg.height;
       if (w > h && w > MAX_DIM) { h = Math.round(h * MAX_DIM / w); w = MAX_DIM; }
       else if (h > MAX_DIM) { w = Math.round(w * MAX_DIM / h); h = MAX_DIM; }
       const canvas = document.createElement("canvas");
       canvas.width = w; canvas.height = h;
       canvas.getContext("2d").drawImage(tempImg, 0, 0, w, h);
-      compressedPhotoDataUrl = canvas.toDataURL("image/jpeg", 0.55);
+      compressedPhotoDataUrl = canvas.toDataURL("image/jpeg", 0.45);
       img.src = compressedPhotoDataUrl;
       wrap.style.display = "block";
     };
@@ -2521,7 +2637,10 @@ function sendEmailNotification(record, checkId) {
    HISTORY / LOG
    =================================================================== */
 document.getElementById("historyBoothFilter").addEventListener("change", renderHistory);
-document.getElementById("reportDateInput").addEventListener("change", renderDailyReport);
+document.getElementById("reportDateInput").addEventListener("change", () => {
+  renderDailyReport();
+  checkForArchive();
+});
 
 function renderHistory() {
   const wrap = document.getElementById("historyTableWrap");
