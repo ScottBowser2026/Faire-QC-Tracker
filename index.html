@@ -780,6 +780,12 @@
     <div id="dailyReportWrap"></div>
 
     <div class="section-head" style="margin-top:28px;">
+      <h3 style="margin:0; font-size:1.05rem;">Daily Report — By User</h3>
+      <button class="btn btn-secondary btn-sm" onclick="downloadUserReport()">⬇ Download By-User Report</button>
+    </div>
+    <div id="userReportWrap"></div>
+
+    <div class="section-head" style="margin-top:28px;">
       <h3 style="margin:0; font-size:1.05rem;">Site Assessment — Corporate Summary</h3>
       <button class="btn btn-secondary btn-sm" onclick="downloadSiteAssessment()">⬇ Download Site Assessment</button>
     </div>
@@ -1848,7 +1854,24 @@ function computeDailyReportData() {
     };
   });
 
-  return { dateObj, schedule, operatingHours, targetIntervalHours, expectedPerBooth, rows, checksForDay };
+  // Group by who actually ran the check (checkedBy), not just which booth it was at.
+  const userNames = [...new Set(checksForDay.map(c => (c.checkedBy || "Unknown").trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+  const userRows = userNames.map(name => {
+    const userChecks = checksForDay.filter(c => (c.checkedBy || "Unknown").trim() === name).sort((a, b) => (a.submittedAt || 0) - (b.submittedAt || 0));
+    const count = userChecks.length;
+    const passCount = userChecks.filter(c => c.status === "pass").length;
+    const failCount = userChecks.filter(c => c.status === "fail").length;
+    const boothsChecked = [...new Set(userChecks.map(c => c.boothName || "Unknown"))];
+    return {
+      name,
+      count, passCount, failCount,
+      boothsChecked: boothsChecked.join(", "),
+      firstTime: count ? (userChecks[0].checkTime || "") : "—",
+      lastTime: count ? (userChecks[count - 1].checkTime || "") : "—"
+    };
+  });
+
+  return { dateObj, schedule, operatingHours, targetIntervalHours, expectedPerBooth, rows, userRows, checksForDay };
 }
 
 function renderDailyReport() {
@@ -1883,7 +1906,46 @@ function renderDailyReport() {
       </tbody>
     </table>`;
 
+  renderUserReport(data);
   renderSiteAssessment(data);
+}
+
+function renderUserReport(data) {
+  const wrap = document.getElementById("userReportWrap");
+  if (!wrap) return;
+  if (!data) data = computeDailyReportData();
+  const { userRows } = data;
+
+  if (!userRows.length) {
+    wrap.innerHTML = `<div class="empty">No checks logged by anyone yet for this day.</div>`;
+    return;
+  }
+
+  wrap.innerHTML = `
+    <table class="log">
+      <thead><tr>
+        <th>User</th><th>Checks</th><th>Pass</th><th>Fail</th><th>Booths Checked</th><th>First</th><th>Last</th>
+      </tr></thead>
+      <tbody>
+        ${userRows.map(u => `
+          <tr>
+            <td data-label="User"><b>${escapeHtml(u.name)}</b></td>
+            <td data-label="Checks" class="mono">${u.count}</td>
+            <td data-label="Pass" class="mono">${u.passCount}</td>
+            <td data-label="Fail" class="mono">${u.failCount}</td>
+            <td data-label="Booths Checked">${escapeHtml(u.boothsChecked)}</td>
+            <td data-label="First" class="mono">${escapeHtml(u.firstTime)}</td>
+            <td data-label="Last" class="mono">${escapeHtml(u.lastTime)}</td>
+          </tr>`).join("")}
+      </tbody>
+    </table>`;
+}
+
+function downloadUserReport() {
+  const data = computeDailyReportData();
+  const headers = ["User", "Checks", "Pass", "Fail", "Booths Checked", "First Check", "Last Check"];
+  const rows = [headers, ...data.userRows.map(u => [u.name, u.count, u.passCount, u.failCount, u.boothsChecked, u.firstTime, u.lastTime])];
+  downloadCsv(rows, "by-user-report");
 }
 
 function renderSiteAssessment(data) {
@@ -1973,7 +2035,7 @@ function dateKey(dateObj) {
 function archiveDailyReport() {
   if (!db || !currentFacilityId) return;
   const data = computeDailyReportData();
-  const { dateObj, schedule, operatingHours, targetIntervalHours, rows, checksForDay } = data;
+  const { dateObj, schedule, operatingHours, targetIntervalHours, rows, userRows, checksForDay } = data;
 
   if (!checksForDay.length) {
     if (!confirm("No checks logged for this day yet. Archive an empty summary anyway?")) return;
@@ -2003,6 +2065,15 @@ function archiveDailyReport() {
       lastTime: r.lastTime,
       actualRate: r.actualRate,
       compliance: r.compliance
+    })),
+    users: userRows.map(u => ({
+      name: u.name,
+      count: u.count,
+      passCount: u.passCount,
+      failCount: u.failCount,
+      boothsChecked: u.boothsChecked,
+      firstTime: u.firstTime,
+      lastTime: u.lastTime
     }))
   };
 
@@ -2052,6 +2123,29 @@ function renderArchivedSummary(archive, dateObj) {
           </tr>`).join("")}
       </tbody>
     </table>`;
+
+  const userWrap = document.getElementById("userReportWrap");
+  const archiveUsers = archive.users || [];
+  if (userWrap) {
+    userWrap.innerHTML = archiveUsers.length ? `
+      <table class="log">
+        <thead><tr>
+          <th>User</th><th>Checks</th><th>Pass</th><th>Fail</th><th>Booths Checked</th><th>First</th><th>Last</th>
+        </tr></thead>
+        <tbody>
+          ${archiveUsers.map(u => `
+            <tr>
+              <td data-label="User"><b>${escapeHtml(u.name)}</b></td>
+              <td data-label="Checks" class="mono">${u.count}</td>
+              <td data-label="Pass" class="mono">${u.passCount}</td>
+              <td data-label="Fail" class="mono">${u.failCount}</td>
+              <td data-label="Booths Checked">${escapeHtml(u.boothsChecked)}</td>
+              <td data-label="First" class="mono">${escapeHtml(u.firstTime)}</td>
+              <td data-label="Last" class="mono">${escapeHtml(u.lastTime)}</td>
+            </tr>`).join("")}
+        </tbody>
+      </table>` : `<div class="empty">No per-user data saved in this archive (archived before this feature was added).</div>`;
+  }
 
   const passRate = (archive.totalPass + archive.totalFail) > 0 ? Math.round((archive.totalPass / (archive.totalPass + archive.totalFail)) * 100) : null;
   const assignedRows = archive.booths.filter(r => r.hasManager && r.isOpenBooth);
