@@ -515,6 +515,40 @@
     .item-card{flex-direction:column;}
     .item-actions{flex-direction:row;}
   }
+
+  /* ---------- Print / Save-as-PDF: hide the app, show only the report ---------- */
+  #printableReportContainer{display:none;}
+  @media print{
+    body > *:not(#printableReportContainer){display:none !important;}
+    #printableReportContainer{
+      display:block !important;
+      position:static !important;
+      color:#111;
+      background:#fff;
+      font-family:'Inter',sans-serif;
+      padding:0;
+    }
+    #printableReportContainer h1{font-size:20px; margin:0 0 4px;}
+    #printableReportContainer h2{font-size:15px; margin:22px 0 8px; border-bottom:1px solid #999; padding-bottom:4px;}
+    #printableReportContainer .print-meta{font-size:11px; color:#555; margin-bottom:14px;}
+    #printableReportContainer table{display:table !important; width:100%; border-collapse:collapse; margin-bottom:8px;}
+    #printableReportContainer thead{display:table-header-group !important;}
+    #printableReportContainer tbody{display:table-row-group !important;}
+    #printableReportContainer tr{display:table-row !important; page-break-inside:avoid;}
+    #printableReportContainer th, #printableReportContainer td{
+      display:table-cell !important;
+      border:1px solid #ccc;
+      padding:4px 6px;
+      font-size:10px;
+      text-align:left;
+    }
+    #printableReportContainer th{background:#eee; font-weight:700;}
+    #printableReportContainer .print-stats{display:flex !important; gap:18px; margin-bottom:10px;}
+    #printableReportContainer .print-stat{text-align:center;}
+    #printableReportContainer .print-stat .num{display:block; font-size:18px; font-weight:700;}
+    #printableReportContainer .print-stat .lbl{display:block; font-size:9px; text-transform:uppercase; color:#555;}
+    #printableReportContainer .print-section{page-break-inside:avoid;}
+  }
 </style>
 </head>
 <body>
@@ -770,6 +804,11 @@
         <button class="btn btn-secondary btn-sm" onclick="renderDailyReport()">Refresh</button>
         <button class="btn btn-primary btn-sm" onclick="archiveDailyReport()">📦 Archive This Day</button>
       </div>
+    </div>
+    <div class="zm-box" style="border-left-color:var(--copper); margin-top:12px;">
+      <span class="label">One Combined Report</span>
+      <button class="btn btn-primary btn-sm" onclick="printFullReport()">🖨️ Print / Save as PDF — Everything Below</button>
+      <span class="temp-hint">Opens your browser's print dialog — choose "Save as PDF" as the destination to get one file with every section combined.</span>
     </div>
     <div id="archiveStatusNote" class="temp-hint" style="margin-bottom:10px;"></div>
 
@@ -2072,6 +2111,111 @@ function downloadUserTimeBlockReport() {
     return [name, ...counts];
   })];
   downloadCsv(rows, "zone-manager-time-blocks");
+}
+
+/* ===================================================================
+   ONE COMBINED PDF — builds every report section into a single
+   printable document and hands off to the browser's native
+   Print / Save-as-PDF, so there's no separate library or extra
+   network weight to load.
+   =================================================================== */
+function printFullReport() {
+  const data = computeDailyReportData();
+  const { dateObj, schedule, operatingHours, targetIntervalHours, expectedPerBooth, rows, userRows, checksForDay } = data;
+  const facilityLabel = (facilityMetaData[currentFacilityId] && facilityMetaData[currentFacilityId].name) || currentFacilityId;
+  const blocks = getTimeBlocksForDate(currentFacilityId, dateObj);
+  const roster = getFacilityManagerRoster(currentFacilityId);
+
+  const totalPass = checksForDay.filter(c => c.status === "pass").length;
+  const totalFail = checksForDay.filter(c => c.status === "fail").length;
+  const passRate = totalPass + totalFail > 0 ? Math.round((totalPass / (totalPass + totalFail)) * 100) : null;
+  const assignedRows = rows.filter(r => r.hasManager && r.isOpenBooth);
+  const compliancePool = assignedRows.filter(r => r.compliance !== null);
+  const avgCompliance = compliancePool.length ? Math.round(compliancePool.reduce((s, r) => s + r.compliance, 0) / compliancePool.length) : null;
+
+  const boothTimeBlockRows = blocks.length ? Object.keys(boothsData)
+    .sort((a, b) => (boothsData[a].name || "").localeCompare(boothsData[b].name || ""))
+    .map(id => {
+      const booth = boothsData[id];
+      const boothChecks = checksForDay.filter(c => c.boothId === id);
+      const cells = blocks.map(blk => checksInBlock(boothChecks, blk).length).map(n => `<td>${n}</td>`).join("");
+      return `<tr><td>${escapeHtml(booth.name || "Unnamed Booth")}</td>${cells}</tr>`;
+    }).join("") : "";
+
+  const userTimeBlockRows = blocks.length ? roster.map(name => {
+    const userChecks = checksForDay.filter(c => (c.checkedBy || "").trim() === name);
+    const cells = blocks.map(blk => checksInBlock(userChecks, blk).length).map(n => `<td>${n}</td>`).join("");
+    return `<tr><td><b>${escapeHtml(name)}</b></td>${cells}</tr>`;
+  }).join("") : "";
+
+  const html = `
+    <h1>Faire Food QC — Daily Report</h1>
+    <div class="print-meta">${escapeHtml(facilityLabel)} · ${escapeHtml(dateObj.toLocaleDateString())} · Generated ${escapeHtml(new Date().toLocaleString())}</div>
+
+    <div class="print-section">
+      <h2>Site Assessment — Corporate Summary</h2>
+      <div class="print-meta">${schedule ? `Operating hours: ${schedule.open}–${schedule.close} (${operatingHours.toFixed(1)} hrs) · Target interval: every ${targetIntervalHours} hr(s)` : "No operating hours configured for this day."}</div>
+      <div class="print-stats">
+        <div class="print-stat"><span class="num">${assignedRows.length}</span><span class="lbl">Booths Assigned &amp; Open</span></div>
+        <div class="print-stat"><span class="num">${checksForDay.length}</span><span class="lbl">Total Checks</span></div>
+        <div class="print-stat"><span class="num">${passRate === null ? "—" : passRate + "%"}</span><span class="lbl">Pass Rate</span></div>
+        <div class="print-stat"><span class="num">${avgCompliance === null ? "—" : avgCompliance + "%"}</span><span class="lbl">Avg. Compliance</span></div>
+      </div>
+    </div>
+
+    <div class="print-section">
+      <h2>Daily Report — By Booth</h2>
+      <table>
+        <thead><tr><th>Booth</th><th>Zone Manager(s)</th><th>Checks</th><th>Pass</th><th>Fail</th><th>First</th><th>Last</th><th>Rate/hr</th><th>vs Target</th></tr></thead>
+        <tbody>
+          ${rows.map(r => `<tr>
+            <td>${escapeHtml(r.boothName)}</td>
+            <td>${escapeHtml(r.managers)}</td>
+            <td>${r.count}</td><td>${r.passCount}</td><td>${r.failCount}</td>
+            <td>${escapeHtml(r.firstTime)}</td><td>${escapeHtml(r.lastTime)}</td>
+            <td>${r.actualRate ? r.actualRate.toFixed(2) : "—"}</td>
+            <td>${r.compliance === null ? "—" : r.compliance + "%"}</td>
+          </tr>`).join("")}
+        </tbody>
+      </table>
+    </div>
+
+    ${blocks.length ? `
+    <div class="print-section">
+      <h2>Booth Coverage — By Time Block</h2>
+      <table>
+        <thead><tr><th>Booth</th>${blocks.map(b => `<th>${escapeHtml(b.label)}</th>`).join("")}</tr></thead>
+        <tbody>${boothTimeBlockRows}</tbody>
+      </table>
+    </div>` : ""}
+
+    <div class="print-section">
+      <h2>Daily Report — By User</h2>
+      <table>
+        <thead><tr><th>User</th><th>Checks</th><th>Pass</th><th>Fail</th><th>Booths Checked</th><th>First</th><th>Last</th></tr></thead>
+        <tbody>
+          ${userRows.map(u => `<tr>
+            <td><b>${escapeHtml(u.name)}</b></td>
+            <td>${u.count}</td><td>${u.passCount}</td><td>${u.failCount}</td>
+            <td>${escapeHtml(u.boothsChecked)}</td>
+            <td>${escapeHtml(u.firstTime)}</td><td>${escapeHtml(u.lastTime)}</td>
+          </tr>`).join("")}
+        </tbody>
+      </table>
+    </div>
+
+    ${blocks.length && roster.length ? `
+    <div class="print-section">
+      <h2>Zone Manager Coverage — By Time Block</h2>
+      <table>
+        <thead><tr><th>Zone Manager</th>${blocks.map(b => `<th>${escapeHtml(b.label)}</th>`).join("")}</tr></thead>
+        <tbody>${userTimeBlockRows}</tbody>
+      </table>
+    </div>` : ""}
+  `;
+
+  document.getElementById("printableReportContainer").innerHTML = html;
+  window.print();
 }
 
 
@@ -3850,5 +3994,6 @@ if ("serviceWorker" in navigator) {
   });
 }
 </script>
+<div id="printableReportContainer"></div>
 </body>
 </html>
