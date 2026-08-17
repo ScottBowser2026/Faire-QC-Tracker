@@ -780,10 +780,25 @@
     <div id="dailyReportWrap"></div>
 
     <div class="section-head" style="margin-top:28px;">
+      <h3 style="margin:0; font-size:1.05rem;">Booth Coverage — By Time Block</h3>
+      <button class="btn btn-secondary btn-sm" onclick="downloadBoothTimeBlockReport()">⬇ Download</button>
+    </div>
+    <div id="boothTimeBlockWrap"></div>
+
+    <div class="section-head" style="margin-top:28px;">
       <h3 style="margin:0; font-size:1.05rem;">Daily Report — By User</h3>
-      <button class="btn btn-secondary btn-sm" onclick="downloadUserReport()">⬇ Download By-User Report</button>
+      <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        <button class="btn btn-secondary btn-sm" onclick="downloadUserReport()">⬇ Download Summary</button>
+        <button class="btn btn-secondary btn-sm" onclick="downloadUserDetailReport()">⬇ Download Detailed Log (every check)</button>
+      </div>
     </div>
     <div id="userReportWrap"></div>
+
+    <div class="section-head" style="margin-top:28px;">
+      <h3 style="margin:0; font-size:1.05rem;">Zone Manager Coverage — By Time Block</h3>
+      <button class="btn btn-secondary btn-sm" onclick="downloadUserTimeBlockReport()">⬇ Download</button>
+    </div>
+    <div id="userTimeBlockWrap"></div>
 
     <div class="section-head" style="margin-top:28px;">
       <h3 style="margin:0; font-size:1.05rem;">Site Assessment — Corporate Summary</h3>
@@ -1835,7 +1850,7 @@ function computeDailyReportData() {
   const boothIds = Object.keys(boothsData).sort((a, b) => (boothsData[a].name || "").localeCompare(boothsData[b].name || ""));
   const rows = boothIds.map(id => {
     const booth = boothsData[id];
-    const boothChecks = checksForDay.filter(c => c.boothId === id).sort((a, b) => (a.submittedAt || 0) - (b.submittedAt || 0));
+    const boothChecks = checksForDay.filter(c => c.boothId === id).sort((a, b) => (a.checkTime || "").localeCompare(b.checkTime || ""));
     const count = boothChecks.length;
     const passCount = boothChecks.filter(c => c.status === "pass").length;
     const failCount = boothChecks.filter(c => c.status === "fail").length;
@@ -1857,7 +1872,7 @@ function computeDailyReportData() {
   // Group by who actually ran the check (checkedBy), not just which booth it was at.
   const userNames = [...new Set(checksForDay.map(c => (c.checkedBy || "Unknown").trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b));
   const userRows = userNames.map(name => {
-    const userChecks = checksForDay.filter(c => (c.checkedBy || "Unknown").trim() === name).sort((a, b) => (a.submittedAt || 0) - (b.submittedAt || 0));
+    const userChecks = checksForDay.filter(c => (c.checkedBy || "Unknown").trim() === name).sort((a, b) => (a.checkTime || "").localeCompare(b.checkTime || ""));
     const count = userChecks.length;
     const passCount = userChecks.filter(c => c.status === "pass").length;
     const failCount = userChecks.filter(c => c.status === "fail").length;
@@ -1873,6 +1888,56 @@ function computeDailyReportData() {
 
   return { dateObj, schedule, operatingHours, targetIntervalHours, expectedPerBooth, rows, userRows, checksForDay };
 }
+
+/* ---------------- Time-block breakdown (Booth x Block, Zone Manager x Block) ----------------
+   Blocks are generated from the facility's actual open/close time for
+   the selected day, sliced into target-interval-sized chunks (e.g. 2
+   hours) — so "10-12, 12-2, 2-4..." falls out naturally from whatever
+   a given day's real schedule is, rather than being hardcoded. */
+function checkTimeToMinutes(checkTimeStr) {
+  if (!checkTimeStr) return null;
+  const timePart = checkTimeStr.split("T")[1];
+  if (!timePart) return null;
+  const [h, m] = timePart.split(":").map(Number);
+  if (isNaN(h)) return null;
+  return h * 60 + (m || 0);
+}
+
+function minutesToClockLabel(mins) {
+  let h = Math.floor(mins / 60), m = mins % 60;
+  const ampm = h >= 12 ? "PM" : "AM";
+  let h12 = h % 12; if (h12 === 0) h12 = 12;
+  return h12 + (m ? ":" + String(m).padStart(2, "0") : "") + ampm;
+}
+
+function getTimeBlocksForDate(facilityId, dateObj) {
+  const schedule = getScheduleForDate(facilityId, dateObj);
+  const targetIntervalHours = getFacilityTargetIntervalHours(facilityId);
+  if (!schedule || targetIntervalHours <= 0) return [];
+  const startMin = parseTimeToMinutes(schedule.open);
+  const endMin = parseTimeToMinutes(schedule.close);
+  const blockMin = targetIntervalHours * 60;
+  const blocks = [];
+  for (let s = startMin; s < endMin; s += blockMin) {
+    const e = Math.min(s + blockMin, endMin);
+    blocks.push({ startMin: s, endMin: e, label: minutesToClockLabel(s) + "–" + minutesToClockLabel(e) });
+  }
+  return blocks;
+}
+
+function getFacilityManagerRoster(facilityId) {
+  const names = new Set();
+  Object.values(boothsData).forEach(b => getBoothManagerNames(b).forEach(n => names.add(n)));
+  return [...names].sort((a, b) => a.localeCompare(b));
+}
+
+function checksInBlock(checks, blk) {
+  return checks.filter(c => {
+    const mins = checkTimeToMinutes(c.checkTime);
+    return mins !== null && mins >= blk.startMin && mins < blk.endMin;
+  });
+}
+
 
 function renderDailyReport() {
   const wrap = document.getElementById("dailyReportWrap");
@@ -1907,8 +1972,108 @@ function renderDailyReport() {
     </table>`;
 
   renderUserReport(data);
+  renderBoothTimeBlockReport(data);
+  renderUserTimeBlockReport(data);
   renderSiteAssessment(data);
 }
+
+function renderBoothTimeBlockReport(data) {
+  const wrap = document.getElementById("boothTimeBlockWrap");
+  if (!wrap || !currentFacilityId) return;
+  if (!data) data = computeDailyReportData();
+  const blocks = getTimeBlocksForDate(currentFacilityId, data.dateObj);
+  if (!blocks.length) {
+    wrap.innerHTML = `<div class="empty">No schedule configured for this day — set hours under Facilities → Edit Schedule to enable the time-block breakdown.</div>`;
+    return;
+  }
+  const boothIds = Object.keys(boothsData).sort((a, b) => (boothsData[a].name || "").localeCompare(boothsData[b].name || ""));
+  wrap.innerHTML = `
+    <table class="log">
+      <thead><tr><th>Booth</th>${blocks.map(b => `<th>${escapeHtml(b.label)}</th>`).join("")}</tr></thead>
+      <tbody>
+        ${boothIds.map(id => {
+          const booth = boothsData[id];
+          const boothChecks = data.checksForDay.filter(c => c.boothId === id);
+          return `<tr>
+            <td data-label="Booth">${escapeHtml(booth.name || "Unnamed Booth")}</td>
+            ${blocks.map(blk => {
+              const inBlock = checksInBlock(boothChecks, blk);
+              const count = inBlock.length;
+              const hasFail = inBlock.some(c => c.status === "fail");
+              const cls = count === 0 ? "fail" : (hasFail ? "fail" : "pass");
+              return `<td data-label="${escapeHtml(blk.label)}" class="mono"><span class="badge ${cls}">${count}</span></td>`;
+            }).join("")}
+          </tr>`;
+        }).join("")}
+      </tbody>
+    </table>`;
+}
+
+function renderUserTimeBlockReport(data) {
+  const wrap = document.getElementById("userTimeBlockWrap");
+  if (!wrap || !currentFacilityId) return;
+  if (!data) data = computeDailyReportData();
+  const blocks = getTimeBlocksForDate(currentFacilityId, data.dateObj);
+  if (!blocks.length) {
+    wrap.innerHTML = `<div class="empty">No schedule configured for this day — set hours under Facilities → Edit Schedule to enable the time-block breakdown.</div>`;
+    return;
+  }
+  const roster = getFacilityManagerRoster(currentFacilityId);
+  if (!roster.length) {
+    wrap.innerHTML = `<div class="empty">No Zone Managers assigned to any booths in this facility yet.</div>`;
+    return;
+  }
+  wrap.innerHTML = `
+    <div class="temp-hint" style="margin-bottom:10px;">A red 0 means that person logged nothing in that window — this is the fastest way to spot who went quiet and when.</div>
+    <table class="log">
+      <thead><tr><th>Zone Manager</th>${blocks.map(b => `<th>${escapeHtml(b.label)}</th>`).join("")}</tr></thead>
+      <tbody>
+        ${roster.map(name => {
+          const userChecks = data.checksForDay.filter(c => (c.checkedBy || "").trim() === name);
+          return `<tr>
+            <td data-label="Zone Manager"><b>${escapeHtml(name)}</b></td>
+            ${blocks.map(blk => {
+              const inBlock = checksInBlock(userChecks, blk);
+              const count = inBlock.length;
+              const hasFail = inBlock.some(c => c.status === "fail");
+              const cls = count === 0 ? "fail" : (hasFail ? "fail" : "pass");
+              return `<td data-label="${escapeHtml(blk.label)}" class="mono"><span class="badge ${cls}">${count}</span></td>`;
+            }).join("")}
+          </tr>`;
+        }).join("")}
+      </tbody>
+    </table>`;
+}
+
+function downloadBoothTimeBlockReport() {
+  const data = computeDailyReportData();
+  const blocks = getTimeBlocksForDate(currentFacilityId, data.dateObj);
+  if (!blocks.length) { toast("No schedule configured for this day", "err"); return; }
+  const boothIds = Object.keys(boothsData).sort((a, b) => (boothsData[a].name || "").localeCompare(boothsData[b].name || ""));
+  const headers = ["Booth", ...blocks.map(b => b.label)];
+  const rows = [headers, ...boothIds.map(id => {
+    const booth = boothsData[id];
+    const boothChecks = data.checksForDay.filter(c => c.boothId === id);
+    const counts = blocks.map(blk => checksInBlock(boothChecks, blk).length);
+    return [booth.name || "Unnamed Booth", ...counts];
+  })];
+  downloadCsv(rows, "booth-time-blocks");
+}
+
+function downloadUserTimeBlockReport() {
+  const data = computeDailyReportData();
+  const blocks = getTimeBlocksForDate(currentFacilityId, data.dateObj);
+  if (!blocks.length) { toast("No schedule configured for this day", "err"); return; }
+  const roster = getFacilityManagerRoster(currentFacilityId);
+  const headers = ["Zone Manager", ...blocks.map(b => b.label)];
+  const rows = [headers, ...roster.map(name => {
+    const userChecks = data.checksForDay.filter(c => (c.checkedBy || "").trim() === name);
+    const counts = blocks.map(blk => checksInBlock(userChecks, blk).length);
+    return [name, ...counts];
+  })];
+  downloadCsv(rows, "zone-manager-time-blocks");
+}
+
 
 function renderUserReport(data) {
   const wrap = document.getElementById("userReportWrap");
@@ -1946,6 +2111,30 @@ function downloadUserReport() {
   const headers = ["User", "Checks", "Pass", "Fail", "Booths Checked", "First Check", "Last Check"];
   const rows = [headers, ...data.userRows.map(u => [u.name, u.count, u.passCount, u.failCount, u.boothsChecked, u.firstTime, u.lastTime])];
   downloadCsv(rows, "by-user-report");
+}
+
+// Every individual check, one row each — grouped by who ran it, then
+// sorted by time within that — for full traceability of exactly what
+// each Zone Manager tested and how each one came out (not just totals).
+function downloadUserDetailReport() {
+  const data = computeDailyReportData();
+  const sorted = data.checksForDay.slice().sort((a, b) => {
+    const nameA = (a.checkedBy || "Unknown").trim();
+    const nameB = (b.checkedBy || "Unknown").trim();
+    if (nameA !== nameB) return nameA.localeCompare(nameB);
+    return (a.checkTime || "").localeCompare(b.checkTime || "");
+  });
+  const headers = ["User", "Time", "Booth", "Item", "Temp", "Status", "Notes"];
+  const rows = [headers, ...sorted.map(c => [
+    (c.checkedBy || "Unknown").trim(),
+    c.checkTime || "",
+    c.boothName || "",
+    c.itemName || "",
+    c.temp !== null && c.temp !== undefined ? c.temp + "°F" : "",
+    c.status === "na" ? "LOGGED" : (c.status || "").toUpperCase(),
+    c.notes || ""
+  ])];
+  downloadCsv(rows, "by-user-detail-log");
 }
 
 function renderSiteAssessment(data) {
