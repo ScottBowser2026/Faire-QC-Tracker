@@ -619,7 +619,7 @@
   <button data-tab="checkView" class="active">New Check</button>
   <button data-tab="boothsView" style="display:none;">Booths &amp; Menus</button>
   <button data-tab="zoneManagersView" style="display:none;">Managers</button>
-  <button data-tab="historyView">Check Log</button>
+  <button data-tab="historyView" style="display:none;">Check Log</button>
   <button data-tab="reportsView" style="display:none;">Reports</button>
   <button data-tab="tastingView" style="display:none;">Food Tasting</button>
   <button data-tab="inventoryView" style="display:none;">Inventory</button>
@@ -1123,6 +1123,10 @@
   </div>
 </div>
 
+<div class="modal-overlay" id="checkResultOverlay">
+  <div class="modal-box" id="checkResultBox"></div>
+</div>
+
 <div class="modal-overlay" id="startChooserOverlay">
   <div class="modal-box">
     <h3>What are you logging?</h3>
@@ -1518,6 +1522,7 @@ function finishLogin() {
   const reportsTab = document.querySelector('nav.tabs button[data-tab="reportsView"]');
   const tastingTab = document.querySelector('nav.tabs button[data-tab="tastingView"]');
   const inventoryTab = document.querySelector('nav.tabs button[data-tab="inventoryView"]');
+  const historyTab = document.querySelector('nav.tabs button[data-tab="historyView"]');
   const facilitiesTab = document.querySelector('nav.tabs button[data-tab="facilitiesView"]');
   const superadminsTab = document.querySelector('nav.tabs button[data-tab="superadminsView"]');
   const dashboardTab = document.querySelector('nav.tabs button[data-tab="dashboardView"]');
@@ -1528,11 +1533,13 @@ function finishLogin() {
     zmTab.style.display = "";
     reportsTab.style.display = "";
     tastingTab.style.display = "";
+    historyTab.style.display = "";
   } else {
     boothsTab.style.display = "none";
     zmTab.style.display = "none";
     reportsTab.style.display = "none";
     tastingTab.style.display = "none";
+    historyTab.style.display = "none";
   }
 
   const canSeeInventoryTab = loggedInManager.role === "admin" || loggedInManager.role === "superadmin" || loggedInManager.canInventory;
@@ -1595,6 +1602,7 @@ function logoutManager() {
   document.querySelector('nav.tabs button[data-tab="reportsView"]').style.display = "none";
   document.querySelector('nav.tabs button[data-tab="tastingView"]').style.display = "none";
   document.querySelector('nav.tabs button[data-tab="inventoryView"]').style.display = "none";
+  document.querySelector('nav.tabs button[data-tab="historyView"]').style.display = "none";
   document.querySelector('nav.tabs button[data-tab="facilitiesView"]').style.display = "none";
   document.querySelector('nav.tabs button[data-tab="superadminsView"]').style.display = "none";
   document.querySelector('nav.tabs button[data-tab="dashboardView"]').style.display = "none";
@@ -3426,24 +3434,7 @@ document.getElementById("qcSubmitBtn").addEventListener("click", () => {
       submittedAt: Date.now()
     };
 
-    queueCheckLocally(record);
-    toast("Delivery saved on this device — syncing…", "ok");
-    document.getElementById("qcVendor").value = "";
-    document.getElementById("qcItemsReceived").value = "";
-    document.getElementById("qcQuantity").value = "";
-    document.getElementById("qcCondition").value = "good";
-    document.getElementById("qcTemp").value = "";
-    document.getElementById("qcNotesSelect").value = "";
-    document.getElementById("qcNotesOther").value = "";
-    document.getElementById("qcNotesOther").style.display = "none";
-    document.getElementById("qcPhoto").value = "";
-    document.getElementById("qcPhotoPreviewWrap").style.display = "none";
-    document.getElementById("qcPhoto2").value = "";
-    document.getElementById("qcPhoto2PreviewWrap").style.display = "none";
-    compressedPhotoDataUrl = null;
-    compressedPhotoDataUrl2 = null;
-    setDefaultTime();
-    trySyncPendingQueue();
+    showCheckResult(record, "delivery");
     return;
   }
 
@@ -3495,12 +3486,19 @@ document.getElementById("qcSubmitBtn").addEventListener("click", () => {
     submittedAt: Date.now()
   };
 
-  // Save locally FIRST — this always "succeeds" instantly regardless of
-  // connectivity, since it's just writing to the device, not the network.
-  // A background sync (triggered below, and whenever connection returns)
-  // pushes it to Firebase the moment a signal is available.
-  queueCheckLocally(record);
-  toast("Check saved on this device — syncing…", "ok");
+  showCheckResult(record, "check");
+});
+
+/* ---------------- Check/Delivery result + rectify screen ----------------
+   Submitting no longer just toasts and clears the form — it shows the
+   outcome (pass/fail) first. A failed check or rejected delivery can be
+   rectified right there (resolution logged into the same record) before
+   moving on to the next one. Nothing is saved to the device/Firebase
+   until the manager dismisses this screen. */
+let pendingResultRecord = null;
+let pendingResultKind = null;
+
+function resetCheckForm() {
   document.getElementById("qcTemp").value = "";
   document.getElementById("qcNotesSelect").value = "";
   document.getElementById("qcNotesOther").value = "";
@@ -3509,9 +3507,117 @@ document.getElementById("qcSubmitBtn").addEventListener("click", () => {
   document.getElementById("qcPhotoPreviewWrap").style.display = "none";
   compressedPhotoDataUrl = null;
   setDefaultTime();
+}
 
+function resetDeliveryForm() {
+  document.getElementById("qcVendor").value = "";
+  document.getElementById("qcItemsReceived").value = "";
+  document.getElementById("qcQuantity").value = "";
+  document.getElementById("qcCondition").value = "good";
+  document.getElementById("qcTemp").value = "";
+  document.getElementById("qcNotesSelect").value = "";
+  document.getElementById("qcNotesOther").value = "";
+  document.getElementById("qcNotesOther").style.display = "none";
+  document.getElementById("qcPhoto").value = "";
+  document.getElementById("qcPhotoPreviewWrap").style.display = "none";
+  document.getElementById("qcPhoto2").value = "";
+  document.getElementById("qcPhoto2PreviewWrap").style.display = "none";
+  compressedPhotoDataUrl = null;
+  compressedPhotoDataUrl2 = null;
+  setDefaultTime();
+}
+
+function showCheckResult(record, kind) {
+  pendingResultRecord = record;
+  pendingResultKind = kind;
+  renderCheckResultBox();
+  document.getElementById("checkResultOverlay").classList.add("show");
+}
+
+function renderCheckResultBox() {
+  const r = pendingResultRecord;
+  const box = document.getElementById("checkResultBox");
+  const passed = r.status === "pass";
+  const naStatus = r.status === "na";
+  const banner = naStatus
+    ? `<div style="background:var(--parchment-dim); padding:14px; border-radius:8px; text-align:center; font-weight:600; margin-bottom:14px;">LOGGED — no temp required</div>`
+    : `<div style="background:${passed ? "#DCEEDD" : "#F5D6D6"}; color:${passed ? "#1F5C2A" : "#8C2222"}; padding:14px; border-radius:8px; text-align:center; font-weight:700; font-size:1.1rem; margin-bottom:14px;">${passed ? "✓ PASSED" : "✕ FAILED"}</div>`;
+
+  const label = kind === "delivery" ? "Delivery" : "Check";
+  const itemLine = kind === "delivery"
+    ? `${escapeHtml(r.itemsReceived)} — ${escapeHtml(r.quantity)} from ${escapeHtml(r.vendor)}`
+    : escapeHtml(r.itemName);
+
+  let html = `<h3>${label} Result</h3>${banner}`;
+  html += `<table style="width:100%; font-size:.9rem; margin-bottom:14px;">
+    <tr><td style="color:var(--slate); padding:3px 0;">Booth</td><td style="text-align:right;">${escapeHtml(r.boothName)}</td></tr>
+    <tr><td style="color:var(--slate); padding:3px 0;">${kind === "delivery" ? "Item(s)" : "Item"}</td><td style="text-align:right;">${itemLine}</td></tr>
+    ${r.temp !== null ? `<tr><td style="color:var(--slate); padding:3px 0;">Temp</td><td style="text-align:right;">${r.temp}°F</td></tr>` : ""}
+    <tr><td style="color:var(--slate); padding:3px 0;">Time</td><td style="text-align:right;">${escapeHtml(r.checkTime)}</td></tr>
+  </table>`;
+
+  if (!passed && !naStatus) {
+    html += `
+      <div class="field">
+        <label>Rectify now (optional)</label>
+        <select id="resultResolutionSelect">
+          <option value="">— Not resolved yet —</option>
+          <option value="Reheated to safe temp">Reheated to safe temp</option>
+          <option value="Item discarded">Item discarded</option>
+          <option value="New batch started">New batch started</option>
+          <option value="Retested — now passing">Retested — now passing</option>
+          <option value="__other__">Other (type your own)…</option>
+        </select>
+        <textarea id="resultResolutionOther" placeholder="Type resolution…" style="display:none; margin-top:8px;"></textarea>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-ghost btn-sm" onclick="dismissCheckResult(false)">Continue Without Resolving</button>
+        <button class="btn btn-primary btn-sm" onclick="dismissCheckResult(true)">Mark Resolved &amp; Continue</button>
+      </div>`;
+  } else {
+    html += `<div class="modal-actions">
+      <button class="btn btn-primary btn-sm" onclick="dismissCheckResult(false)">Continue</button>
+    </div>`;
+  }
+
+  box.innerHTML = html;
+
+  const sel = document.getElementById("resultResolutionSelect");
+  if (sel) {
+    sel.addEventListener("change", (e) => {
+      document.getElementById("resultResolutionOther").style.display = e.target.value === "__other__" ? "block" : "none";
+    });
+  }
+}
+
+function dismissCheckResult(resolve) {
+  const r = pendingResultRecord;
+  const kind = pendingResultKind;
+  if (!r) return;
+
+  if (resolve) {
+    const sel = document.getElementById("resultResolutionSelect");
+    const val = sel ? sel.value : "";
+    const resolutionNotes = val === "__other__" ? document.getElementById("resultResolutionOther").value.trim() : val;
+    if (resolutionNotes) {
+      r.resolved = true;
+      r.resolvedBy = loggedInManager.name;
+      r.resolvedByRole = loggedInManager.role;
+      r.resolvedAt = Date.now();
+      r.resolutionNotes = resolutionNotes;
+    }
+  }
+
+  queueCheckLocally(r);
+  toast(`${kind === "delivery" ? "Delivery" : "Check"} saved on this device — syncing…`, "ok");
+
+  closeModal("checkResultOverlay");
+  pendingResultRecord = null;
+  pendingResultKind = null;
+
+  if (kind === "delivery") resetDeliveryForm(); else resetCheckForm();
   trySyncPendingQueue();
-});
+}
 
 /* ===================================================================
    FOOD TASTING (Admin/Superadmin only)
