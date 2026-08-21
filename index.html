@@ -5160,7 +5160,28 @@ function escapeHtml(str) {
 /* ---------------- PWA service worker registration ---------------- */
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("sw.js").catch(err => console.warn("SW registration failed", err));
+    navigator.serviceWorker.register("sw.js").then(reg => {
+      // If a new service worker takes over while the app is already open
+      // (rare, but possible if it's left open across a deploy), nudge the
+      // person to refresh instead of leaving them silently on stale code.
+      let hasShownUpdatePrompt = false;
+      reg.addEventListener("updatefound", () => {
+        const newWorker = reg.installing;
+        if (!newWorker) return;
+        newWorker.addEventListener("statechange", () => {
+          if (newWorker.state === "installed" && navigator.serviceWorker.controller && !hasShownUpdatePrompt) {
+            hasShownUpdatePrompt = true;
+            if (confirm("A new version of this app is available. Refresh now?")) {
+              window.location.reload();
+            }
+          }
+        });
+      });
+      // Check for an update every time the app comes back to the foreground.
+      document.addEventListener("visibilitychange", () => {
+        if (document.visibilityState === "visible") reg.update();
+      });
+    }).catch(err => console.warn("SW registration failed", err));
   });
 }
 </script>
