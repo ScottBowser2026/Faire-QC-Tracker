@@ -711,32 +711,18 @@
       <div class="sub">Incoming delivery verification</div>
 
       <div class="field">
-        <label>Received At</label>
+        <label>Booth</label>
         <select id="dvBooth"><option value="">Select a booth…</option></select>
       </div>
 
       <div class="field">
-        <label>Vendor / Supplier</label>
-        <input type="text" id="dvVendor" placeholder="e.g. Sysco, local farm name">
+        <label>Prep Item</label>
+        <select id="dvItem" disabled><option value="">Select booth first…</option></select>
       </div>
 
       <div class="field">
-        <label>Item(s) Received</label>
-        <input type="text" id="dvItemsReceived" placeholder="e.g. Ground beef, 40 lb cases">
-      </div>
-
-      <div class="field">
-        <label>Quantity</label>
-        <input type="text" id="dvQuantity" placeholder="e.g. 4 cases">
-      </div>
-
-      <div class="field">
-        <label>Condition</label>
-        <select id="dvCondition">
-          <option value="good">Good</option>
-          <option value="damaged">Damaged</option>
-          <option value="rejected">Rejected</option>
-        </select>
+        <label id="dvQuantityLabel">Quantity</label>
+        <input type="number" step="0.01" id="dvQuantity" placeholder="e.g. 40">
       </div>
 
       <div class="field">
@@ -776,9 +762,8 @@
         <select id="dvNotesSelect">
           <option value="">— None —</option>
           <option value="Delivery accepted">Delivery accepted</option>
-          <option value="Delivery rejected — see notes">Delivery rejected — see notes</option>
+          <option value="Short delivery — see notes">Short delivery — see notes</option>
           <option value="Item discarded">Item discarded</option>
-          <option value="Equipment issue — reported">Equipment issue — reported</option>
           <option value="__other__">Other (type your own)…</option>
         </select>
         <textarea id="dvNotesOther" placeholder="Type your note…" style="display:none; margin-top:8px;"></textarea>
@@ -1962,6 +1947,8 @@ function attachFacilityListeners() {
     });
     activeFacilityMetaListener = fmr;
   }
+
+  attachInventoryItemsListenerIfNeeded();
 }
 
 function detachFacilityListeners() {
@@ -2870,11 +2857,11 @@ function populateDeliveryBoothSelect() {
   const sel = document.getElementById("dvBooth");
   if (!sel) return;
   const current = sel.value;
-  const ids = Object.keys(boothsData).sort((a, b) => (boothsData[a].name || "").localeCompare(boothsData[b].name || ""));
-  sel.innerHTML = `<option value="">Select a booth…</option>` + ids.map(id =>
-    `<option value="${id}">${escapeHtml(boothsData[id].name || "Unnamed Booth")}</option>`
+  const booths = Array.from(new Set(Object.values(inventoryItemsData || {}).map(it => it.booth).filter(Boolean))).sort();
+  sel.innerHTML = `<option value="">Select a booth…</option>` + booths.map(b =>
+    `<option value="${escapeHtml(b)}">${escapeHtml(b)}</option>`
   ).join("");
-  if (ids.includes(current)) sel.value = current;
+  if (booths.includes(current)) sel.value = current;
 }
 
 function populateHistoryFilter() {
@@ -3510,8 +3497,31 @@ document.getElementById("qcSubmitBtn").addEventListener("click", () => {
 });
 
 const dvBoothSel = document.getElementById("dvBooth");
+const dvItemSel = document.getElementById("dvItem");
 let dvPhotoDataUrl = null;
 let dvPhotoDataUrl2 = null;
+
+dvBoothSel.addEventListener("change", () => {
+  const booth = dvBoothSel.value;
+  const items = Object.entries(inventoryItemsData || {}).filter(([id, it]) => it.booth === booth);
+  if (!booth || !items.length) {
+    dvItemSel.innerHTML = `<option value="">${booth ? "No prep items for this booth" : "Select booth first…"}</option>`;
+    dvItemSel.disabled = true;
+    document.getElementById("dvQuantityLabel").textContent = "Quantity";
+    return;
+  }
+  items.sort((a, b) => (a[1].name || "").localeCompare(b[1].name || ""));
+  dvItemSel.innerHTML = `<option value="">Select an item…</option>` + items.map(([id, it]) =>
+    `<option value="${id}">${escapeHtml(it.name || "Unnamed")} (${escapeHtml(it.unit || "")})</option>`
+  ).join("");
+  dvItemSel.disabled = false;
+  document.getElementById("dvQuantityLabel").textContent = "Quantity";
+});
+
+dvItemSel.addEventListener("change", () => {
+  const it = inventoryItemsData[dvItemSel.value];
+  document.getElementById("dvQuantityLabel").textContent = it ? `Quantity (${it.unit || ""})` : "Quantity";
+});
 
 document.getElementById("dvPhoto").addEventListener("change", (e) => {
   const file = e.target.files[0];
@@ -3552,48 +3562,40 @@ document.getElementById("dvNotesSelect").addEventListener("change", (e) => {
 
 document.getElementById("dvSubmitBtn").addEventListener("click", () => {
   if (!loggedInManager) { toast("Please log in with your PIN first", "err"); return; }
-  const boothId = dvBoothSel.value;
+  const booth = dvBoothSel.value;
+  const itemId = dvItemSel.value;
   const checkedBy = document.getElementById("dvCheckedBy").value.trim();
   const checkTime = document.getElementById("dvTime").value;
   const tempVal = document.getElementById("dvTemp").value;
   const notesSelectVal = document.getElementById("dvNotesSelect").value;
   const notes = notesSelectVal === "__other__" ? document.getElementById("dvNotesOther").value.trim() : notesSelectVal;
 
-  if (!boothId) { toast("Select a booth", "err"); return; }
+  if (!booth) { toast("Select a booth", "err"); return; }
+  if (!itemId) { toast("Select a prep item", "err"); return; }
   if (!checkedBy) { toast("Enter who's running this", "err"); return; }
   if (!checkTime) { toast("Set the time", "err"); return; }
   if (!dvPhotoDataUrl) { toast("A photo is required to submit this", "err"); return; }
 
-  const booth = boothsData[boothId];
-  const vendor = document.getElementById("dvVendor").value.trim();
-  const itemsReceived = document.getElementById("dvItemsReceived").value.trim();
-  const quantity = document.getElementById("dvQuantity").value.trim();
-  const condition = document.getElementById("dvCondition").value;
+  const item = inventoryItemsData[itemId];
+  const quantityVal = document.getElementById("dvQuantity").value;
 
-  if (!vendor) { toast("Enter the vendor/supplier", "err"); return; }
-  if (!itemsReceived) { toast("Enter the item(s) received", "err"); return; }
-  if (!quantity) { toast("Enter the quantity", "err"); return; }
+  if (!quantityVal) { toast("Enter the quantity", "err"); return; }
   if (!tempVal) { toast("Enter the arrival temperature", "err"); return; }
-
-  const status = condition === "good" ? "pass" : "fail";
 
   const record = {
     type: "delivery",
     facilityId: currentFacilityId,
     facilityName: (facilityMetaData[currentFacilityId] && facilityMetaData[currentFacilityId].name) || currentFacilityId,
-    boothId,
-    boothName: booth.name,
-    zoneManager: boothManagerDisplay(booth),
-    itemName: itemsReceived,
-    vendor,
-    itemsReceived,
-    quantity,
-    condition,
+    boothName: booth,
+    itemId,
+    itemName: item.name,
+    unit: item.unit || "",
+    quantity: parseFloat(quantityVal),
     checkedBy,
     checkTime,
     temp: parseFloat(tempVal),
     minTemp: null,
-    status,
+    status: "na",
     notes,
     photoUrl: dvPhotoDataUrl,
     conditionPhotoUrl: dvPhotoDataUrl2 || null,
@@ -3624,10 +3626,8 @@ function resetCheckForm() {
 }
 
 function resetDeliveryForm() {
-  document.getElementById("dvVendor").value = "";
-  document.getElementById("dvItemsReceived").value = "";
   document.getElementById("dvQuantity").value = "";
-  document.getElementById("dvCondition").value = "good";
+  document.getElementById("dvQuantityLabel").textContent = "Quantity";
   document.getElementById("dvTemp").value = "";
   document.getElementById("dvNotesSelect").value = "";
   document.getElementById("dvNotesOther").value = "";
@@ -3657,15 +3657,15 @@ function renderCheckResultBox() {
     ? `<div style="background:var(--parchment-dim); padding:14px; border-radius:8px; text-align:center; font-weight:600; margin-bottom:14px;">LOGGED — no temp required</div>`
     : `<div style="background:${passed ? "#DCEEDD" : "#F5D6D6"}; color:${passed ? "#1F5C2A" : "#8C2222"}; padding:14px; border-radius:8px; text-align:center; font-weight:700; font-size:1.1rem; margin-bottom:14px;">${passed ? "✓ PASSED" : "✕ FAILED"}</div>`;
 
-  const label = kind === "delivery" ? "Delivery" : "Check";
-  const itemLine = kind === "delivery"
-    ? `${escapeHtml(r.itemsReceived)} — ${escapeHtml(r.quantity)} from ${escapeHtml(r.vendor)}`
+  const label = pendingResultKind === "delivery" ? "Delivery" : "Check";
+  const itemLine = pendingResultKind === "delivery"
+    ? `${escapeHtml(r.itemName)} — ${r.quantity} ${escapeHtml(r.unit || "")}`
     : escapeHtml(r.itemName);
 
   let html = `<h3>${label} Result</h3>${banner}`;
   html += `<table style="width:100%; font-size:.9rem; margin-bottom:14px;">
     <tr><td style="color:var(--slate); padding:3px 0;">Booth</td><td style="text-align:right;">${escapeHtml(r.boothName)}</td></tr>
-    <tr><td style="color:var(--slate); padding:3px 0;">${kind === "delivery" ? "Item(s)" : "Item"}</td><td style="text-align:right;">${itemLine}</td></tr>
+    <tr><td style="color:var(--slate); padding:3px 0;">${pendingResultKind === "delivery" ? "Item(s)" : "Item"}</td><td style="text-align:right;">${itemLine}</td></tr>
     ${r.temp !== null ? `<tr><td style="color:var(--slate); padding:3px 0;">Temp</td><td style="text-align:right;">${r.temp}°F</td></tr>` : ""}
     <tr><td style="color:var(--slate); padding:3px 0;">Time</td><td style="text-align:right;">${escapeHtml(r.checkTime)}</td></tr>
   </table>`;
@@ -3723,7 +3723,7 @@ function dismissCheckResult(resolve) {
   }
 
   queueCheckLocally(r);
-  toast(`${kind === "delivery" ? "Delivery" : "Check"} saved on this device — syncing…`, "ok");
+  toast(`${pendingResultKind === "delivery" ? "Delivery" : "Check"} saved on this device — syncing…`, "ok");
 
   closeModal("checkResultOverlay");
   pendingResultRecord = null;
@@ -4336,16 +4336,26 @@ function renderInventoryTable() {
   wrap.innerHTML = html;
 }
 
-function attachInventoryListenersIfNeeded() {
-  if (activeInvItemsListener) { renderInventoryTable(); return; }
+function attachInventoryItemsListenerIfNeeded() {
+  if (activeInvItemsListener) return;
   const ir = inventoryItemsRef();
+  if (!ir) return;
+  ir.on("value", (snap) => {
+    inventoryItemsData = snap.val() || {};
+    populateDeliveryBoothSelect();
+    renderInventoryTable();
+  });
+  activeInvItemsListener = ir;
+}
+
+function attachInventoryListenersIfNeeded() {
+  attachInventoryItemsListenerIfNeeded();
+  if (activeInvAttendanceListener) { renderInventoryTable(); return; }
   const ar = weeklyAttendanceRef();
   const cr = inventoryCountsRef();
-  if (!ir || !ar || !cr) return;
-  ir.on("value", (snap) => { inventoryItemsData = snap.val() || {}; renderInventoryTable(); });
+  if (!ar || !cr) return;
   ar.on("value", (snap) => { weeklyAttendanceData = snap.val() || {}; populateInvWeekSelect(); });
   cr.on("value", (snap) => { inventoryCountsData = snap.val() || {}; renderInventoryTable(); });
-  activeInvItemsListener = ir;
   activeInvAttendanceListener = ar;
   activeInvCountsListener = cr;
 }
