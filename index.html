@@ -617,6 +617,7 @@
 
 <nav class="tabs">
   <button data-tab="checkView" class="active">New Check</button>
+  <button data-tab="deliveryView" style="display:none;">Food Delivery</button>
   <button data-tab="boothsView" style="display:none;">Booths &amp; Menus</button>
   <button data-tab="zoneManagersView" style="display:none;">Managers</button>
   <button data-tab="historyView" style="display:none;">Check Log</button>
@@ -635,51 +636,23 @@
   <section id="checkView" class="view active">
     <div class="section-head"><h2>Run a Quality Check</h2></div>
     <div class="ticket">
-      <h3 id="qcTicketTitle">FOOD SAFETY CHECK</h3>
-      <div class="sub" id="qcTicketSub">Time &amp; temperature verification</div>
-
-      <div class="field" id="qcModeRow" style="display:flex; gap:8px;">
-        <button type="button" class="btn btn-secondary btn-sm qc-mode-btn active" id="qcModeCheckBtn" onclick="setCheckMode('check')" style="flex:1; justify-content:center;">Check</button>
-        <button type="button" class="btn btn-secondary btn-sm qc-mode-btn" id="qcModeDeliveryBtn" onclick="setCheckMode('delivery')" style="flex:1; justify-content:center;">Food Delivery</button>
-      </div>
+      <h3>FOOD SAFETY CHECK</h3>
+      <div class="sub">Time &amp; temperature verification</div>
 
       <div class="field">
-        <label id="qcBoothLabel">Booth</label>
+        <label>Booth</label>
         <select id="qcBooth"><option value="">Select a booth…</option></select>
       </div>
 
       <div id="qcZmDisplay" class="temp-hint" style="margin:-8px 0 14px;"></div>
 
-      <div class="field" id="qcItemFieldWrap">
+      <div class="field">
         <label>Menu Item</label>
         <select id="qcItem" disabled><option value="">Select booth first…</option></select>
       </div>
 
       <div id="qcBakedNote" class="baked-note" style="display:none;">
         This item is flagged as not temperature-sensitive (e.g. baked good). Only time is logged.
-      </div>
-
-      <div id="qcDeliveryFields" style="display:none;">
-        <div class="field">
-          <label>Vendor / Supplier</label>
-          <input type="text" id="qcVendor" placeholder="e.g. Sysco, local farm name">
-        </div>
-        <div class="field">
-          <label>Item(s) Received</label>
-          <input type="text" id="qcItemsReceived" placeholder="e.g. Ground beef, 40 lb cases">
-        </div>
-        <div class="field">
-          <label>Quantity</label>
-          <input type="text" id="qcQuantity" placeholder="e.g. 4 cases">
-        </div>
-        <div class="field">
-          <label>Condition</label>
-          <select id="qcCondition">
-            <option value="good">Good</option>
-            <option value="damaged">Damaged</option>
-            <option value="rejected">Rejected</option>
-          </select>
-        </div>
       </div>
 
       <div class="field">
@@ -701,20 +674,12 @@
       </div>
 
       <div class="field">
-        <label id="qcPhotoLabel">Photo (required)</label>
+        <label>Photo (required)</label>
         <input type="file" id="qcPhoto" accept="image/*" capture="environment">
         <div id="qcPhotoPreviewWrap" style="display:none; margin-top:8px;">
           <img id="qcPhotoPreview" style="max-width:100%; max-height:180px; border-radius:6px; border:1px solid var(--line);">
         </div>
-        <div class="temp-hint" style="margin-top:5px;" id="qcPhotoHint">Snap a photo of the item/reading as proof of the check.</div>
-      </div>
-
-      <div class="field" id="qcPhoto2Field" style="display:none;">
-        <label>Condition / Damage Photo (optional)</label>
-        <input type="file" id="qcPhoto2" accept="image/*" capture="environment">
-        <div id="qcPhoto2PreviewWrap" style="display:none; margin-top:8px;">
-          <img id="qcPhoto2Preview" style="max-width:100%; max-height:180px; border-radius:6px; border:1px solid var(--line);">
-        </div>
+        <div class="temp-hint" style="margin-top:5px;">Snap a photo of the item/reading as proof of the check.</div>
       </div>
 
       <div class="field">
@@ -732,10 +697,95 @@
         <textarea id="qcNotesOther" placeholder="Type your note…" style="display:none; margin-top:8px;"></textarea>
       </div>
 
-      <div id="qcUploadProgress" style="display:none; font-size:.8rem; color:var(--slate); margin-bottom:10px;">Saving check…</div>
-
       <button class="btn btn-primary" id="qcSubmitBtn" style="width:100%; justify-content:center; padding:12px;">
         Submit Check
+      </button>
+    </div>
+  </section>
+
+  <!-- ===================== FOOD DELIVERY VIEW ===================== -->
+  <section id="deliveryView" class="view">
+    <div class="section-head"><h2>Log a Food Delivery</h2></div>
+    <div class="ticket">
+      <h3>FOOD DELIVERY LOG</h3>
+      <div class="sub">Incoming delivery verification</div>
+
+      <div class="field">
+        <label>Received At</label>
+        <select id="dvBooth"><option value="">Select a booth…</option></select>
+      </div>
+
+      <div class="field">
+        <label>Vendor / Supplier</label>
+        <input type="text" id="dvVendor" placeholder="e.g. Sysco, local farm name">
+      </div>
+
+      <div class="field">
+        <label>Item(s) Received</label>
+        <input type="text" id="dvItemsReceived" placeholder="e.g. Ground beef, 40 lb cases">
+      </div>
+
+      <div class="field">
+        <label>Quantity</label>
+        <input type="text" id="dvQuantity" placeholder="e.g. 4 cases">
+      </div>
+
+      <div class="field">
+        <label>Condition</label>
+        <select id="dvCondition">
+          <option value="good">Good</option>
+          <option value="damaged">Damaged</option>
+          <option value="rejected">Rejected</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label>Delivery Time</label>
+        <input type="datetime-local" id="dvTime">
+      </div>
+
+      <div class="field">
+        <label>Arrival Temperature (°F)</label>
+        <input type="number" id="dvTemp" step="0.1" placeholder="e.g. 38">
+      </div>
+
+      <div class="field">
+        <label>Received By</label>
+        <input type="text" id="dvCheckedBy" placeholder="Your name">
+      </div>
+
+      <div class="field">
+        <label>Delivery / Thermometer Photo (required)</label>
+        <input type="file" id="dvPhoto" accept="image/*" capture="environment">
+        <div id="dvPhotoPreviewWrap" style="display:none; margin-top:8px;">
+          <img id="dvPhotoPreview" style="max-width:100%; max-height:180px; border-radius:6px; border:1px solid var(--line);">
+        </div>
+        <div class="temp-hint" style="margin-top:5px;">Snap a photo of the delivery and the thermometer reading.</div>
+      </div>
+
+      <div class="field">
+        <label>Condition / Damage Photo (optional)</label>
+        <input type="file" id="dvPhoto2" accept="image/*" capture="environment">
+        <div id="dvPhoto2PreviewWrap" style="display:none; margin-top:8px;">
+          <img id="dvPhoto2Preview" style="max-width:100%; max-height:180px; border-radius:6px; border:1px solid var(--line);">
+        </div>
+      </div>
+
+      <div class="field">
+        <label>Notes (optional)</label>
+        <select id="dvNotesSelect">
+          <option value="">— None —</option>
+          <option value="Delivery accepted">Delivery accepted</option>
+          <option value="Delivery rejected — see notes">Delivery rejected — see notes</option>
+          <option value="Item discarded">Item discarded</option>
+          <option value="Equipment issue — reported">Equipment issue — reported</option>
+          <option value="__other__">Other (type your own)…</option>
+        </select>
+        <textarea id="dvNotesOther" placeholder="Type your note…" style="display:none; margin-top:8px;"></textarea>
+      </div>
+
+      <button class="btn btn-primary" id="dvSubmitBtn" style="width:100%; justify-content:center; padding:12px;">
+        Submit Delivery
       </button>
     </div>
   </section>
@@ -1517,6 +1567,13 @@ function finishLogin() {
     qtCb.style.background = "var(--parchment-dim)";
   }
 
+  const dvCb = document.getElementById("dvCheckedBy");
+  if (dvCb) {
+    dvCb.value = loggedInManager.name;
+    dvCb.readOnly = true;
+    dvCb.style.background = "var(--parchment-dim)";
+  }
+
   const boothsTab = document.querySelector('nav.tabs button[data-tab="boothsView"]');
   const zmTab = document.querySelector('nav.tabs button[data-tab="zoneManagersView"]');
   const reportsTab = document.querySelector('nav.tabs button[data-tab="reportsView"]');
@@ -1544,6 +1601,7 @@ function finishLogin() {
 
   const canSeeInventoryTab = loggedInManager.role === "admin" || loggedInManager.role === "superadmin" || loggedInManager.canInventory;
   inventoryTab.style.display = canSeeInventoryTab ? "" : "none";
+  updateCheckAndDeliveryTabVisibility();
 
   if (isSuperadmin) {
     facilitiesTab.style.display = "";
@@ -1568,10 +1626,10 @@ function finishLogin() {
 
   attachFacilityListeners();
   populateBoothSelect();
+  populateDeliveryBoothSelect();
   populateTastingBoothSelect();
   renderPendingBadge();
   trySyncPendingQueue();
-  setCheckMode("check");
   if (!isRestoringSession) toast(`Welcome, ${loggedInManager.name}`, "ok");
   isRestoringSession = false;
   openStartChooser();
@@ -1597,12 +1655,20 @@ function logoutManager() {
   cb.readOnly = false;
   cb.style.background = "";
 
+  const dvCb = document.getElementById("dvCheckedBy");
+  if (dvCb) {
+    dvCb.value = "";
+    dvCb.readOnly = false;
+    dvCb.style.background = "";
+  }
+
   document.querySelector('nav.tabs button[data-tab="boothsView"]').style.display = "none";
   document.querySelector('nav.tabs button[data-tab="zoneManagersView"]').style.display = "none";
   document.querySelector('nav.tabs button[data-tab="reportsView"]').style.display = "none";
   document.querySelector('nav.tabs button[data-tab="tastingView"]').style.display = "none";
   document.querySelector('nav.tabs button[data-tab="inventoryView"]').style.display = "none";
   document.querySelector('nav.tabs button[data-tab="historyView"]').style.display = "none";
+  document.querySelector('nav.tabs button[data-tab="deliveryView"]').style.display = "none";
   document.querySelector('nav.tabs button[data-tab="facilitiesView"]').style.display = "none";
   document.querySelector('nav.tabs button[data-tab="superadminsView"]').style.display = "none";
   document.querySelector('nav.tabs button[data-tab="dashboardView"]').style.display = "none";
@@ -1614,7 +1680,6 @@ function logoutManager() {
   closeModal("startChooserOverlay");
   closeModal("notesAckOverlay");
   notesPopupShownThisSession = false;
-  setCheckMode("check");
 }
 
 document.getElementById("loginSubmitBtn").addEventListener("click", attemptLogin);
@@ -1850,8 +1915,10 @@ function attachFacilityListeners() {
       if (currentFacilityId) cacheBoothsForFacility(currentFacilityId, boothsData);
       renderBoothGrid();
       populateBoothSelect();
+  populateDeliveryBoothSelect();
       populateTastingBoothSelect();
       if (document.getElementById("startChooserOverlay").classList.contains("show")) updateStartChooserTiles();
+      updateCheckAndDeliveryTabVisibility();
       if (activeBoothId) renderBoothDetail(activeBoothId);
       populateHistoryFilter();
       renderZmAssignTable();
@@ -1891,6 +1958,7 @@ function attachFacilityListeners() {
     fmr.on("value", (snap) => {
       facilityMetaData[currentFacilityId] = snap.val() || { name: currentFacilityId };
       populateBoothSelect();
+  populateDeliveryBoothSelect();
     });
     activeFacilityMetaListener = fmr;
   }
@@ -2798,6 +2866,17 @@ function populateBoothSelect() {
   if (ids.includes(current)) sel.value = current;
 }
 
+function populateDeliveryBoothSelect() {
+  const sel = document.getElementById("dvBooth");
+  if (!sel) return;
+  const current = sel.value;
+  const ids = Object.keys(boothsData).sort((a, b) => (boothsData[a].name || "").localeCompare(boothsData[b].name || ""));
+  sel.innerHTML = `<option value="">Select a booth…</option>` + ids.map(id =>
+    `<option value="${id}">${escapeHtml(boothsData[id].name || "Unnamed Booth")}</option>`
+  ).join("");
+  if (ids.includes(current)) sel.value = current;
+}
+
 function populateHistoryFilter() {
   const sel = document.getElementById("historyBoothFilter");
   const current = sel.value;
@@ -3099,35 +3178,7 @@ function setDefaultTime() {
 setDefaultTime();
 
 let compressedPhotoDataUrl = null;
-let compressedPhotoDataUrl2 = null;
-let checkMode = "check";
 let notesPopupShownThisSession = false;
-
-function setCheckMode(mode) {
-  checkMode = mode;
-  document.getElementById("qcModeCheckBtn").classList.toggle("active", mode === "check");
-  document.getElementById("qcModeDeliveryBtn").classList.toggle("active", mode === "delivery");
-
-  const isDelivery = mode === "delivery";
-  document.getElementById("qcItemFieldWrap").style.display = isDelivery ? "none" : "block";
-  document.getElementById("qcDeliveryFields").style.display = isDelivery ? "block" : "none";
-  document.getElementById("qcPhoto2Field").style.display = isDelivery ? "block" : "none";
-  document.getElementById("qcBoothLabel").textContent = isDelivery ? "Received At" : "Booth";
-  document.getElementById("qcTicketTitle").textContent = isDelivery ? "FOOD DELIVERY LOG" : "FOOD SAFETY CHECK";
-  document.getElementById("qcTicketSub").textContent = isDelivery ? "Incoming delivery verification" : "Time & temperature verification";
-  document.getElementById("qcPhotoLabel").textContent = isDelivery ? "Delivery / Thermometer Photo (required)" : "Photo (required)";
-  document.getElementById("qcPhotoHint").textContent = isDelivery ? "Snap a photo of the delivery and the thermometer reading." : "Snap a photo of the item/reading as proof of the check.";
-  document.getElementById("qcSubmitBtn").textContent = isDelivery ? "Submit Delivery" : "Submit Check";
-
-  if (isDelivery) {
-    qcTempField.style.display = "block";
-    qcTempMin.textContent = "";
-    qcBakedNote.style.display = "none";
-  } else {
-    qcTempField.style.display = "none";
-    if (qcItemSel.value) qcItemSel.dispatchEvent(new Event("change"));
-  }
-}
 
 function openStartChooser() {
   updateStartChooserTiles();
@@ -3135,8 +3186,11 @@ function openStartChooser() {
 }
 function chooseStartMode(mode) {
   closeModal("startChooserOverlay");
-  document.querySelector('nav.tabs button[data-tab="checkView"]').click();
-  setCheckMode(mode);
+  if (mode === "delivery") {
+    document.querySelector('nav.tabs button[data-tab="deliveryView"]').click();
+  } else {
+    document.querySelector('nav.tabs button[data-tab="checkView"]').click();
+  }
 }
 function computeStartChooserAccess() {
   if (!loggedInManager) return { showCheck: false, showDelivery: false, showInventory: false };
@@ -3153,16 +3207,23 @@ function updateStartChooserTiles() {
   document.getElementById("startChooserInventoryBtn").style.display = access.showInventory ? "flex" : "none";
   document.getElementById("startChooserEmpty").style.display = (!access.showCheck && !access.showDelivery && !access.showInventory) ? "block" : "none";
 }
+function updateCheckAndDeliveryTabVisibility() {
+  const access = computeStartChooserAccess();
+  const checkTab = document.querySelector('nav.tabs button[data-tab="checkView"]');
+  const deliveryTab = document.querySelector('nav.tabs button[data-tab="deliveryView"]');
+  if (checkTab) checkTab.style.display = access.showCheck ? "" : "none";
+  if (deliveryTab) deliveryTab.style.display = access.showDelivery ? "" : "none";
+}
 function chooseStartInventory() {
   closeModal("startChooserOverlay");
   document.querySelector('nav.tabs button[data-tab="inventoryView"]').click();
 }
 
-document.getElementById("qcPhoto2").addEventListener("change", (e) => {
+document.getElementById("dvPhoto2").addEventListener("change", (e) => {
   const file = e.target.files[0];
-  const wrap = document.getElementById("qcPhoto2PreviewWrap");
-  const img = document.getElementById("qcPhoto2Preview");
-  compressedPhotoDataUrl2 = null;
+  const wrap = document.getElementById("dvPhoto2PreviewWrap");
+  const img = document.getElementById("dvPhoto2Preview");
+  dvPhotoDataUrl2 = null;
   if (!file) { wrap.style.display = "none"; return; }
   const reader = new FileReader();
   reader.onload = (ev) => {
@@ -3175,8 +3236,8 @@ document.getElementById("qcPhoto2").addEventListener("change", (e) => {
       const canvas = document.createElement("canvas");
       canvas.width = w; canvas.height = h;
       canvas.getContext("2d").drawImage(tempImg, 0, 0, w, h);
-      compressedPhotoDataUrl2 = canvas.toDataURL("image/jpeg", 0.45);
-      img.src = compressedPhotoDataUrl2;
+      dvPhotoDataUrl2 = canvas.toDataURL("image/jpeg", 0.45);
+      img.src = dvPhotoDataUrl2;
       wrap.style.display = "block";
     };
     tempImg.src = ev.target.result;
@@ -3397,47 +3458,6 @@ document.getElementById("qcSubmitBtn").addEventListener("click", () => {
   if (!compressedPhotoDataUrl) { toast("A photo is required to submit this", "err"); return; }
 
   const booth = boothsData[boothId];
-
-  if (checkMode === "delivery") {
-    const vendor = document.getElementById("qcVendor").value.trim();
-    const itemsReceived = document.getElementById("qcItemsReceived").value.trim();
-    const quantity = document.getElementById("qcQuantity").value.trim();
-    const condition = document.getElementById("qcCondition").value;
-
-    if (!vendor) { toast("Enter the vendor/supplier", "err"); return; }
-    if (!itemsReceived) { toast("Enter the item(s) received", "err"); return; }
-    if (!quantity) { toast("Enter the quantity", "err"); return; }
-    if (!tempVal) { toast("Enter the arrival temperature", "err"); return; }
-
-    const status = condition === "good" ? "pass" : "fail";
-
-    const record = {
-      type: "delivery",
-      facilityId: currentFacilityId,
-      facilityName: (facilityMetaData[currentFacilityId] && facilityMetaData[currentFacilityId].name) || currentFacilityId,
-      boothId,
-      boothName: booth.name,
-      zoneManager: boothManagerDisplay(booth),
-      itemName: itemsReceived,
-      vendor,
-      itemsReceived,
-      quantity,
-      condition,
-      checkedBy,
-      checkTime,
-      temp: parseFloat(tempVal),
-      minTemp: null,
-      status,
-      notes,
-      photoUrl: compressedPhotoDataUrl,
-      conditionPhotoUrl: compressedPhotoDataUrl2 || null,
-      submittedAt: Date.now()
-    };
-
-    showCheckResult(record, "delivery");
-    return;
-  }
-
   const itemId = qcItemSel.value;
   if (!itemId) { toast("Select a menu item", "err"); return; }
   const item = booth.menuItems[itemId];
@@ -3489,6 +3509,100 @@ document.getElementById("qcSubmitBtn").addEventListener("click", () => {
   showCheckResult(record, "check");
 });
 
+const dvBoothSel = document.getElementById("dvBooth");
+let dvPhotoDataUrl = null;
+let dvPhotoDataUrl2 = null;
+
+document.getElementById("dvPhoto").addEventListener("change", (e) => {
+  const file = e.target.files[0];
+  const wrap = document.getElementById("dvPhotoPreviewWrap");
+  const img = document.getElementById("dvPhotoPreview");
+  dvPhotoDataUrl = null;
+  if (!file) { wrap.style.display = "none"; return; }
+  const reader = new FileReader();
+  reader.onload = (ev) => {
+    const tempImg = new Image();
+    tempImg.onload = () => {
+      const MAX_DIM = 700;
+      let w = tempImg.width, h = tempImg.height;
+      if (w > h && w > MAX_DIM) { h = Math.round(h * MAX_DIM / w); w = MAX_DIM; }
+      else if (h > MAX_DIM) { w = Math.round(w * MAX_DIM / h); h = MAX_DIM; }
+      const canvas = document.createElement("canvas");
+      canvas.width = w; canvas.height = h;
+      canvas.getContext("2d").drawImage(tempImg, 0, 0, w, h);
+      dvPhotoDataUrl = canvas.toDataURL("image/jpeg", 0.45);
+      img.src = dvPhotoDataUrl;
+      wrap.style.display = "block";
+    };
+    tempImg.src = ev.target.result;
+  };
+  reader.readAsDataURL(file);
+});
+
+function setDvDefaultTime() {
+  const now = new Date();
+  now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+  document.getElementById("dvTime").value = now.toISOString().slice(0,16);
+}
+setDvDefaultTime();
+
+document.getElementById("dvNotesSelect").addEventListener("change", (e) => {
+  document.getElementById("dvNotesOther").style.display = e.target.value === "__other__" ? "block" : "none";
+});
+
+document.getElementById("dvSubmitBtn").addEventListener("click", () => {
+  if (!loggedInManager) { toast("Please log in with your PIN first", "err"); return; }
+  const boothId = dvBoothSel.value;
+  const checkedBy = document.getElementById("dvCheckedBy").value.trim();
+  const checkTime = document.getElementById("dvTime").value;
+  const tempVal = document.getElementById("dvTemp").value;
+  const notesSelectVal = document.getElementById("dvNotesSelect").value;
+  const notes = notesSelectVal === "__other__" ? document.getElementById("dvNotesOther").value.trim() : notesSelectVal;
+
+  if (!boothId) { toast("Select a booth", "err"); return; }
+  if (!checkedBy) { toast("Enter who's running this", "err"); return; }
+  if (!checkTime) { toast("Set the time", "err"); return; }
+  if (!dvPhotoDataUrl) { toast("A photo is required to submit this", "err"); return; }
+
+  const booth = boothsData[boothId];
+  const vendor = document.getElementById("dvVendor").value.trim();
+  const itemsReceived = document.getElementById("dvItemsReceived").value.trim();
+  const quantity = document.getElementById("dvQuantity").value.trim();
+  const condition = document.getElementById("dvCondition").value;
+
+  if (!vendor) { toast("Enter the vendor/supplier", "err"); return; }
+  if (!itemsReceived) { toast("Enter the item(s) received", "err"); return; }
+  if (!quantity) { toast("Enter the quantity", "err"); return; }
+  if (!tempVal) { toast("Enter the arrival temperature", "err"); return; }
+
+  const status = condition === "good" ? "pass" : "fail";
+
+  const record = {
+    type: "delivery",
+    facilityId: currentFacilityId,
+    facilityName: (facilityMetaData[currentFacilityId] && facilityMetaData[currentFacilityId].name) || currentFacilityId,
+    boothId,
+    boothName: booth.name,
+    zoneManager: boothManagerDisplay(booth),
+    itemName: itemsReceived,
+    vendor,
+    itemsReceived,
+    quantity,
+    condition,
+    checkedBy,
+    checkTime,
+    temp: parseFloat(tempVal),
+    minTemp: null,
+    status,
+    notes,
+    photoUrl: dvPhotoDataUrl,
+    conditionPhotoUrl: dvPhotoDataUrl2 || null,
+    submittedAt: Date.now()
+  };
+
+  showCheckResult(record, "delivery");
+});
+
 /* ---------------- Check/Delivery result + rectify screen ----------------
    Submitting no longer just toasts and clears the form — it shows the
    outcome (pass/fail) first. A failed check or rejected delivery can be
@@ -3510,21 +3624,21 @@ function resetCheckForm() {
 }
 
 function resetDeliveryForm() {
-  document.getElementById("qcVendor").value = "";
-  document.getElementById("qcItemsReceived").value = "";
-  document.getElementById("qcQuantity").value = "";
-  document.getElementById("qcCondition").value = "good";
-  document.getElementById("qcTemp").value = "";
-  document.getElementById("qcNotesSelect").value = "";
-  document.getElementById("qcNotesOther").value = "";
-  document.getElementById("qcNotesOther").style.display = "none";
-  document.getElementById("qcPhoto").value = "";
-  document.getElementById("qcPhotoPreviewWrap").style.display = "none";
-  document.getElementById("qcPhoto2").value = "";
-  document.getElementById("qcPhoto2PreviewWrap").style.display = "none";
-  compressedPhotoDataUrl = null;
-  compressedPhotoDataUrl2 = null;
-  setDefaultTime();
+  document.getElementById("dvVendor").value = "";
+  document.getElementById("dvItemsReceived").value = "";
+  document.getElementById("dvQuantity").value = "";
+  document.getElementById("dvCondition").value = "good";
+  document.getElementById("dvTemp").value = "";
+  document.getElementById("dvNotesSelect").value = "";
+  document.getElementById("dvNotesOther").value = "";
+  document.getElementById("dvNotesOther").style.display = "none";
+  document.getElementById("dvPhoto").value = "";
+  document.getElementById("dvPhotoPreviewWrap").style.display = "none";
+  document.getElementById("dvPhoto2").value = "";
+  document.getElementById("dvPhoto2PreviewWrap").style.display = "none";
+  dvPhotoDataUrl = null;
+  dvPhotoDataUrl2 = null;
+  setDvDefaultTime();
 }
 
 function showCheckResult(record, kind) {
@@ -4662,6 +4776,7 @@ document.getElementById("facilitySwitcherSelect").addEventListener("change", (e)
   showBoothList();
   attachFacilityListeners();
   populateBoothSelect();
+  populateDeliveryBoothSelect();
   toast(`Switched to ${(facilityMetaData[currentFacilityId] && facilityMetaData[currentFacilityId].name) || currentFacilityId}`, "ok");
 });
 
@@ -4805,6 +4920,7 @@ function switchToFacilityFromTab(id) {
   showBoothList();
   attachFacilityListeners();
   populateBoothSelect();
+  populateDeliveryBoothSelect();
   document.querySelector('nav.tabs button[data-tab="checkView"]').click();
   toast(`Switched to ${(facilityMetaData[id] && facilityMetaData[id].name) || id}`, "ok");
 }
