@@ -51,6 +51,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Zilla+Slab:wght@500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap');
@@ -621,6 +622,7 @@
   <button data-tab="historyView">Check Log</button>
   <button data-tab="reportsView" style="display:none;">Reports</button>
   <button data-tab="tastingView" style="display:none;">Food Tasting</button>
+  <button data-tab="inventoryView" style="display:none;">Inventory</button>
   <button data-tab="notesView">Staff Notes</button>
   <button data-tab="facilitiesView" style="display:none;">Facilities</button>
   <button data-tab="superadminsView" style="display:none;">Superadmins</button>
@@ -846,6 +848,38 @@
     </div>
   </section>
 
+  <!-- ===================== INVENTORY VIEW ===================== -->
+  <section id="inventoryView" class="view">
+    <div class="section-head">
+      <h2>Prep Inventory</h2>
+      <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+        <select id="invWeekSelect" style="padding:7px 10px; border:1px solid var(--line); border-radius:6px;"></select>
+        <button class="btn btn-ghost btn-sm" id="invViewToggleBtn" onclick="toggleInvViewMode()">Prep List View</button>
+        <button class="btn btn-secondary btn-sm" id="invImportBtn" style="display:none;" onclick="importStarterInventoryData()">Import Starter Data</button>
+        <button class="btn btn-secondary btn-sm" id="invDownloadBtn" style="display:none;" onclick="exportInventoryWorkbook()">Download Workbook</button>
+        <button class="btn btn-secondary btn-sm" id="invUploadBtn" style="display:none;" onclick="document.getElementById('invUploadFile').click()">Upload Workbook</button>
+        <input type="file" id="invUploadFile" accept=".xlsx" style="display:none;">
+      </div>
+    </div>
+
+    <div class="field" id="invAttendanceField" style="max-width:280px;">
+      <label>Expected Attendance (this weekend)</label>
+      <input type="number" id="invAttendanceInput" placeholder="e.g. 16000">
+    </div>
+
+    <div class="zm-box" id="invAddItemBox" style="display:none; flex-wrap:wrap;">
+      <span class="label">Add Booth / Menu Item</span>
+      <input type="text" id="invNewBooth" list="invBoothList" placeholder="Booth (existing or new)" style="max-width:180px;">
+      <datalist id="invBoothList"></datalist>
+      <input type="text" id="invNewItemName" placeholder="Item name" style="max-width:160px;">
+      <input type="text" id="invNewItemUnit" placeholder="Unit (e.g. lbs, each)" style="max-width:120px;">
+      <input type="number" step="0.0001" id="invNewItemRate" placeholder="Per attendee rate" style="max-width:140px;">
+      <button class="btn btn-secondary btn-sm" onclick="addInventoryItem()">Add Item</button>
+    </div>
+
+    <div id="invTableWrap"></div>
+  </section>
+
   <!-- ===================== BOOTHS VIEW ===================== -->
   <section id="boothsView" class="view">
 
@@ -903,6 +937,9 @@
       </select>
       <label style="display:flex; align-items:center; gap:4px; font-size:.85rem;">
         <input type="checkbox" id="newZmCanDeliver" style="width:auto;"> Delivery
+      </label>
+      <label style="display:flex; align-items:center; gap:4px; font-size:.85rem;">
+        <input type="checkbox" id="newZmCanInventory" style="width:auto;"> Inventory
       </label>
       <button class="btn btn-secondary btn-sm" onclick="addNewZoneManager()">Add</button>
     </div>
@@ -1095,6 +1132,9 @@
       </button>
       <button class="btn btn-secondary" id="startChooserDeliveryBtn" style="justify-content:flex-start; padding:14px;" onclick="chooseStartMode('delivery')">
         Food Delivery<br><span class="temp-hint" style="font-weight:normal;">Log an incoming delivery</span>
+      </button>
+      <button class="btn btn-secondary" id="startChooserInventoryBtn" style="justify-content:flex-start; padding:14px;" onclick="chooseStartInventory()">
+        Inventory Count<br><span class="temp-hint" style="font-weight:normal;">Log ending inventory counts</span>
       </button>
       <div id="startChooserEmpty" class="empty" style="display:none;">Nothing assigned to you right now — check with your F&amp;B Director.</div>
     </div>
@@ -1397,7 +1437,7 @@ function tryRestoreSessionOnLoad() {
 function loginAsFacilityUser(facilityId, key, entry, cachedMeta) {
   currentFacilityId = facilityId;
   isSuperadmin = false;
-  loggedInManager = { key, name: entry.name, pin: entry.pin, role: entry.role || "manager", canDeliver: entry.canDeliver === true, facilityId };
+  loggedInManager = { key, name: entry.name, pin: entry.pin, role: entry.role || "manager", canDeliver: entry.canDeliver === true, canInventory: entry.canInventory === true, facilityId };
 
   if (cachedMeta) {
     facilityMetaData = {};
@@ -1477,6 +1517,7 @@ function finishLogin() {
   const zmTab = document.querySelector('nav.tabs button[data-tab="zoneManagersView"]');
   const reportsTab = document.querySelector('nav.tabs button[data-tab="reportsView"]');
   const tastingTab = document.querySelector('nav.tabs button[data-tab="tastingView"]');
+  const inventoryTab = document.querySelector('nav.tabs button[data-tab="inventoryView"]');
   const facilitiesTab = document.querySelector('nav.tabs button[data-tab="facilitiesView"]');
   const superadminsTab = document.querySelector('nav.tabs button[data-tab="superadminsView"]');
   const dashboardTab = document.querySelector('nav.tabs button[data-tab="dashboardView"]');
@@ -1493,6 +1534,9 @@ function finishLogin() {
     reportsTab.style.display = "none";
     tastingTab.style.display = "none";
   }
+
+  const canSeeInventoryTab = loggedInManager.role === "admin" || loggedInManager.role === "superadmin" || loggedInManager.canInventory;
+  inventoryTab.style.display = canSeeInventoryTab ? "" : "none";
 
   if (isSuperadmin) {
     facilitiesTab.style.display = "";
@@ -1550,6 +1594,7 @@ function logoutManager() {
   document.querySelector('nav.tabs button[data-tab="zoneManagersView"]').style.display = "none";
   document.querySelector('nav.tabs button[data-tab="reportsView"]').style.display = "none";
   document.querySelector('nav.tabs button[data-tab="tastingView"]').style.display = "none";
+  document.querySelector('nav.tabs button[data-tab="inventoryView"]').style.display = "none";
   document.querySelector('nav.tabs button[data-tab="facilitiesView"]').style.display = "none";
   document.querySelector('nav.tabs button[data-tab="superadminsView"]').style.display = "none";
   document.querySelector('nav.tabs button[data-tab="dashboardView"]').style.display = "none";
@@ -1768,6 +1813,7 @@ document.querySelectorAll("nav.tabs button").forEach(btn => {
     if (btn.dataset.tab === "historyView") attachChecksListenerIfNeeded();
     if (btn.dataset.tab === "dashboardView") attachDashboardListenersIfNeeded();
     if (btn.dataset.tab === "reportsView") openReportsTab();
+    if (btn.dataset.tab === "inventoryView") attachInventoryListenersIfNeeded();
   });
 });
 
@@ -1857,6 +1903,7 @@ function detachFacilityListeners() {
   zoneManagersData = {};
   checksData = {};
   notesData = {};
+  detachInventoryListeners();
   renderBoothGrid();
   populateHistoryFilter();
   renderZmAssignTable();
@@ -3084,18 +3131,23 @@ function chooseStartMode(mode) {
   setCheckMode(mode);
 }
 function computeStartChooserAccess() {
-  if (!loggedInManager) return { showCheck: false, showDelivery: false };
+  if (!loggedInManager) return { showCheck: false, showDelivery: false, showInventory: false };
   if (loggedInManager.role === "admin" || loggedInManager.role === "superadmin") {
-    return { showCheck: true, showDelivery: true };
+    return { showCheck: true, showDelivery: true, showInventory: true };
   }
   const ids = Object.keys(boothsData).filter(id => boothHasManager(boothsData[id], loggedInManager.name) && isBoothOpen(boothsData[id]));
-  return { showCheck: ids.length > 0, showDelivery: !!loggedInManager.canDeliver };
+  return { showCheck: ids.length > 0, showDelivery: !!loggedInManager.canDeliver, showInventory: !!loggedInManager.canInventory };
 }
 function updateStartChooserTiles() {
   const access = computeStartChooserAccess();
   document.getElementById("startChooserCheckBtn").style.display = access.showCheck ? "flex" : "none";
   document.getElementById("startChooserDeliveryBtn").style.display = access.showDelivery ? "flex" : "none";
-  document.getElementById("startChooserEmpty").style.display = (!access.showCheck && !access.showDelivery) ? "block" : "none";
+  document.getElementById("startChooserInventoryBtn").style.display = access.showInventory ? "flex" : "none";
+  document.getElementById("startChooserEmpty").style.display = (!access.showCheck && !access.showDelivery && !access.showInventory) ? "block" : "none";
+}
+function chooseStartInventory() {
+  closeModal("startChooserOverlay");
+  document.querySelector('nav.tabs button[data-tab="inventoryView"]').click();
 }
 
 document.getElementById("qcPhoto2").addEventListener("change", (e) => {
@@ -3646,6 +3698,450 @@ function ackNote(noteId, btnEl) {
   });
 }
 
+/* ===================================================================
+   INVENTORY — weekly Par/Beginning/Additions/Ending/Usage tracking,
+   modeled on the Prep Inventory spreadsheet. Beginning Inventory for
+   each week carries forward automatically from the prior week's
+   Ending Inventory; Ending Inventory is the only manual input.
+   =================================================================== */
+function inventoryItemsRef() { return (db && currentFacilityId) ? db.ref("qc/facilities/" + currentFacilityId + "/inventoryItems") : null; }
+function weeklyAttendanceRef() { return (db && currentFacilityId) ? db.ref("qc/facilities/" + currentFacilityId + "/weeklyAttendance") : null; }
+function inventoryCountsRef() { return (db && currentFacilityId) ? db.ref("qc/facilities/" + currentFacilityId + "/inventoryCounts") : null; }
+
+let inventoryItemsData = {};
+let weeklyAttendanceData = {};
+let inventoryCountsData = {};
+let activeInvItemsListener = null, activeInvAttendanceListener = null, activeInvCountsListener = null;
+let invViewMode = "full";
+
+const STARTER_INVENTORY_ITEMS = [
+  {name:"Scotch Eggs", unit:"each", booth:"Argyle - Friday", perAttendee:0.15},
+  {name:"Sliced Ham", unit:"lbs", booth:"Bread and Broth", perAttendee:0.0078125},
+  {name:"Sliced Gouda", unit:"lbs", booth:"Bread and Broth", perAttendee:0.0015625},
+  {name:"Pulled Pork", unit:"lbs", booth:"Divine Schwein", perAttendee:0.0125},
+  {name:"Pork Belly", unit:"lbs", booth:"Divine Schwein", perAttendee:0.015},
+  {name:"Taco Meat", unit:"lbs", booth:"Cantina", perAttendee:0.00765625},
+  {name:"Shredded Lettuce", unit:"lbs", booth:"Cantina", perAttendee:0.004375},
+  {name:"Street Corn", unit:"lbs", booth:"Cantina", perAttendee:0.01125},
+  {name:"Diced Tomatoes", unit:"lbs", booth:"Cantina", perAttendee:0.004375},
+  {name:"Potatoes", unit:"cases", booth:"Get Baked - Friday", perAttendee:0.0010714286},
+  {name:"Beer Cheese Cups", unit:"each", booth:"Knots for You", perAttendee:0.044},
+  {name:"Shredded Lettuce", unit:"lbs", booth:"Madame Cluckies", perAttendee:0.0025781},
+  {name:"Sliced Tomatoes", unit:"lbs", booth:"Madame Cluckies", perAttendee:0.0034375},
+  {name:"BBQ Sauce", unit:"gallons", booth:"Madame Cluckies", perAttendee:0.0004297},
+  {name:"Brownies (reg + Special)", unit:"each", booth:"Queens Delivered Thursday", perAttendee:0.0175},
+  {name:"Chocolate Cupcakes", unit:"each", booth:"Queens Delivered Thursday", perAttendee:0.01875},
+  {name:"Vanilla Cupcakes", unit:"each", booth:"Queens Delivered Thursday", perAttendee:0.0083333},
+  {name:"Meatballs", unit:"lbs", booth:"Cosimo's", perAttendee:0.0071625},
+  {name:"Sausage no P/O", unit:"lbs", booth:"Cosimo's", perAttendee:0.00575},
+  {name:"Prime Cut Beef", unit:"lbs", booth:"Prime Cut", perAttendee:0.019},
+  {name:"Strawberries for Shakeup", unit:"gallons", booth:"Kettle Craic", perAttendee:0.00015625},
+  {name:"Butter", unit:"bags", booth:"Kettle Craic", perAttendee:0.02},
+  {name:"Kettle", unit:"bags", booth:"Kettle Craic", perAttendee:0.035},
+  {name:"Strawberries Pre Cut", unit:"flats", booth:"Majesty Cup - Friday", perAttendee:0.0015},
+  {name:"Special", unit:"lbs", booth:"Macbeth", perAttendee:0.0065625},
+  {name:"Cappucino Muffin", unit:"total", booth:"DK & DKR Split Between", perAttendee:0.0075},
+  {name:"Banana Muffin", unit:"total", booth:"DK & DKR Split Between", perAttendee:0.0075},
+  {name:"Garlic", unit:"buckets", booth:"Blackbeards Pickles - Wednesday", perAttendee:0.0003636},
+  {name:"Garlic", unit:"buckets", booth:"Wicked Pickle - Wednesday", perAttendee:0.0007273},
+  {name:"Kits", unit:"each", booth:"Smores Kits - Friday", perAttendee:0.03},
+  {name:"Beef", unit:"lbs", booth:"McManley Tiger Pies", perAttendee:0.0075},
+  {name:"Mushroom", unit:"lbs", booth:"McManley Tiger Pies", perAttendee:0.005},
+  {name:"Beef Mushroom Mix", unit:"lbs", booth:"McManley Tiger Pies", perAttendee:0.005},
+  {name:"Pie Shells Baked Off", unit:"cases", booth:"McManley Tiger Pies", perAttendee:0.0006944},
+  {name:"Peas", unit:"lbs", booth:"McManley Tiger Pies", perAttendee:0.00875}
+];
+const STARTER_WEEKLY_ATTENDANCE = [
+  {order:1, label:"August 15th - 16th", expected:16000},
+  {order:2, label:"August 22nd - 23rd", expected:16000},
+  {order:3, label:"August 29th - 30th", expected:16000},
+  {order:4, label:"September 5th - 6th", expected:16000},
+  {order:5, label:"September 12th - 13th", expected:16000},
+  {order:6, label:"September 19th - 20th", expected:16000},
+  {order:7, label:"September 26th - 27th", expected:16000},
+  {order:8, label:"October 3rd - 4th", expected:16000},
+  {order:9, label:"October 10th - 11th", expected:16000},
+  {order:10, label:"October 17th - 18th", expected:16000},
+  {order:11, label:"October 24th - 25th", expected:16000}
+];
+
+function importStarterInventoryData() {
+  if (!inventoryItemsRef() || !weeklyAttendanceRef()) { toast("Not connected yet — try again in a moment", "err"); return; }
+  if (!confirm("Import the 2026 starter Prep Inventory data (35 items, 11 weekends) into this facility? Safe to run even if some already exist — it won't duplicate matching entries.")) return;
+
+  const itemUpdates = {};
+  STARTER_INVENTORY_ITEMS.forEach((it, i) => { itemUpdates["starter_" + i] = it; });
+  const weekUpdates = {};
+  STARTER_WEEKLY_ATTENDANCE.forEach((w, i) => { weekUpdates["wk" + w.order] = w; });
+
+  Promise.all([
+    inventoryItemsRef().update(itemUpdates),
+    weeklyAttendanceRef().update(weekUpdates)
+  ]).then(() => {
+    toast("Starter inventory data imported", "ok");
+  });
+}
+
+/* ---------------- Inventory workbook export/import (xlsx, via SheetJS) ----------------
+   Lets an Admin download the full item list + weekly grid as a real .xlsx,
+   edit it in Excel, and upload it back. Upload only adds/updates rows present
+   in the file — it never deletes an item, week, or count that the file
+   doesn't mention, so a partial edit can't wipe out unrelated data. */
+function populateInvBoothList() {
+  const dl = document.getElementById("invBoothList");
+  if (!dl) return;
+  const booths = Array.from(new Set(Object.values(inventoryItemsData || {}).map(it => it.booth).filter(Boolean))).sort();
+  dl.innerHTML = booths.map(b => `<option value="${escapeHtml(b)}"></option>`).join("");
+}
+
+function addInventoryItem() {
+  if (!inventoryItemsRef()) { toast("Not connected yet — try again in a moment", "err"); return; }
+  const booth = document.getElementById("invNewBooth").value.trim();
+  const name = document.getElementById("invNewItemName").value.trim();
+  const unit = document.getElementById("invNewItemUnit").value.trim();
+  const rate = parseFloat(document.getElementById("invNewItemRate").value);
+
+  if (!booth) { toast("Enter a booth name", "err"); return; }
+  if (!name) { toast("Enter an item name", "err"); return; }
+  if (!unit) { toast("Enter a unit (e.g. lbs, each)", "err"); return; }
+  if (isNaN(rate) || rate < 0) { toast("Enter a per-attendee rate (0 or higher)", "err"); return; }
+
+  inventoryItemsRef().push().set({ name, unit, booth, perAttendee: rate }).then(() => {
+    toast(`${name} added to ${booth}`, "ok");
+    document.getElementById("invNewBooth").value = booth; // keep booth for adding more items to it
+    document.getElementById("invNewItemName").value = "";
+    document.getElementById("invNewItemUnit").value = "";
+    document.getElementById("invNewItemRate").value = "";
+  });
+}
+
+function computeInvWeekValues(order, itemId, item, runningBeginning) {
+  const week = Object.values(weeklyAttendanceData).find(w => w.order === order);
+  const expected = week ? (week.expected || 0) : 0;
+  const par = (item.perAttendee || 0) * expected;
+  const weekId = Object.keys(weeklyAttendanceData).find(k => weeklyAttendanceData[k].order === order);
+  const counts = (weekId && inventoryCountsData[weekId] && inventoryCountsData[weekId][itemId]) || {};
+  const beginning = order === 1
+    ? (counts.beginning !== null && counts.beginning !== undefined ? counts.beginning : (runningBeginning !== undefined ? runningBeginning : 0))
+    : runningBeginning;
+  const additions = Math.max(0, par - beginning);
+  const ending = counts.ending !== null && counts.ending !== undefined ? counts.ending : 0;
+  const usage = Math.max(0, beginning + additions - ending);
+  return { weekId, week, par, beginning, additions, ending, usage };
+}
+
+function exportInventoryWorkbook() {
+  if (typeof XLSX === "undefined") { toast("Workbook library didn't load — check your connection and try again", "err"); return; }
+
+  const instructionsSheet = XLSX.utils.aoa_to_sheet([
+    ["Faire Food QC — Prep Inventory Workbook"],
+    [""],
+    ["Items tab: add new rows for new items (leave Item ID blank). Don't change the Item ID of an existing row."],
+    ["Weekly Attendance tab: add new rows for new weekends (leave Week ID blank). Edit Expected Attendance freely."],
+    ["Weekly Grid tab: Par, Additions, and Usage are calculated by the app — edits to those columns are ignored on upload."],
+    ["Only Beginning (week 1 only — later weeks carry forward automatically) and Ending are used when you upload."],
+    ["Uploading never deletes anything — rows you don't touch are left as-is."]
+  ]);
+
+  const itemRows = [["Item ID", "Booth", "Item", "Unit", "Per Attendee Rate"]];
+  Object.entries(inventoryItemsData || {}).forEach(([id, it]) => {
+    itemRows.push([id, it.booth || "", it.name || "", it.unit || "", it.perAttendee || 0]);
+  });
+  const itemsSheet = XLSX.utils.aoa_to_sheet(itemRows);
+
+  const weekRows = [["Week ID", "Order", "Label", "Expected Attendance"]];
+  Object.entries(weeklyAttendanceData || {}).sort((a, b) => (a[1].order || 0) - (b[1].order || 0)).forEach(([id, w]) => {
+    weekRows.push([id, w.order || "", w.label || "", w.expected || 0]);
+  });
+  const weeksSheet = XLSX.utils.aoa_to_sheet(weekRows);
+
+  const gridRows = [["Week ID", "Week Label", "Item ID", "Booth", "Item", "Unit", "Par", "Beginning", "Additions", "Ending", "Usage"]];
+  const orders = Object.values(weeklyAttendanceData || {}).map(w => w.order).sort((a, b) => a - b);
+  const runningBeginnings = {};
+  orders.forEach(order => {
+    Object.entries(inventoryItemsData || {}).sort((a, b) => (a[1].booth || "").localeCompare(b[1].booth || "") || (a[1].name || "").localeCompare(b[1].name || "")).forEach(([itemId, item]) => {
+      const rb = order === 1 ? undefined : runningBeginnings[itemId];
+      const v = computeInvWeekValues(order, itemId, item, rb);
+      runningBeginnings[itemId] = v.ending;
+      if (v.week) {
+        gridRows.push([v.weekId, v.week.label || "", itemId, item.booth || "", item.name || "", item.unit || "", v.par.toFixed(2), v.beginning.toFixed(2), v.additions.toFixed(2), v.ending.toFixed(2), v.usage.toFixed(2)]);
+      }
+    });
+  });
+  const gridSheet = XLSX.utils.aoa_to_sheet(gridRows);
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, instructionsSheet, "Instructions");
+  XLSX.utils.book_append_sheet(wb, itemsSheet, "Items");
+  XLSX.utils.book_append_sheet(wb, weeksSheet, "Weekly Attendance");
+  XLSX.utils.book_append_sheet(wb, gridSheet, "Weekly Grid");
+
+  const facName = (facilityMetaData[currentFacilityId] && facilityMetaData[currentFacilityId].name) || currentFacilityId || "facility";
+  XLSX.writeFile(wb, `Prep_Inventory_${facName}_${new Date().toISOString().slice(0,10)}.xlsx`);
+}
+
+document.getElementById("invUploadFile").addEventListener("change", (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  if (typeof XLSX === "undefined") { toast("Workbook library didn't load — check your connection and try again", "err"); return; }
+
+  const reader = new FileReader();
+  reader.onload = (ev) => {
+    let wb;
+    try {
+      wb = XLSX.read(new Uint8Array(ev.target.result), { type: "array" });
+    } catch (err) {
+      toast("Couldn't read that file — is it a .xlsx exported from this app?", "err");
+      return;
+    }
+
+    const itemsWs = wb.Sheets["Items"];
+    const weeksWs = wb.Sheets["Weekly Attendance"];
+    const gridWs = wb.Sheets["Weekly Grid"];
+    if (!itemsWs || !weeksWs || !gridWs) {
+      toast("Missing Items, Weekly Attendance, or Weekly Grid tab — use a workbook downloaded from this app", "err");
+      return;
+    }
+
+    const itemRows = XLSX.utils.sheet_to_json(itemsWs, { header: 1 }).slice(1).filter(r => r.length && r[2]);
+    const weekRows = XLSX.utils.sheet_to_json(weeksWs, { header: 1 }).slice(1).filter(r => r.length && r[2]);
+    const gridRows = XLSX.utils.sheet_to_json(gridWs, { header: 1 }).slice(1).filter(r => r.length && r[2]);
+
+    // Build item lookups (existing + newly-named rows in this file)
+    const itemByKey = {}; // "booth||name||unit" -> id
+    Object.entries(inventoryItemsData || {}).forEach(([id, it]) => {
+      itemByKey[(it.booth || "") + "||" + (it.name || "") + "||" + (it.unit || "")] = id;
+    });
+    const itemUpdates = {};
+    itemRows.forEach(r => {
+      const [id, booth, name, unit, rate] = r;
+      const key = (booth || "") + "||" + (name || "") + "||" + (unit || "");
+      let finalId = (id && String(id).trim()) ? String(id).trim() : itemByKey[key];
+      if (!finalId) finalId = "item_" + Date.now() + "_" + Math.random().toString(36).slice(2, 8);
+      itemByKey[key] = finalId;
+      itemUpdates[finalId] = { name: name || "", unit: unit || "", booth: booth || "", perAttendee: parseFloat(rate) || 0 };
+    });
+
+    const weekByLabel = {};
+    Object.entries(weeklyAttendanceData || {}).forEach(([id, w]) => { weekByLabel[w.label || ""] = id; });
+    const weekUpdates = {};
+    weekRows.forEach(r => {
+      const [id, order, label, expected] = r;
+      let finalId = (id && String(id).trim()) ? String(id).trim() : weekByLabel[label || ""];
+      if (!finalId) finalId = "wk_" + Date.now() + "_" + Math.random().toString(36).slice(2, 8);
+      weekByLabel[label || ""] = finalId;
+      weekUpdates[finalId] = { order: parseFloat(order) || 0, label: label || "", expected: parseFloat(expected) || 0 };
+    });
+
+    const countUpdates = {}; // weekId -> itemId -> {beginning, ending}
+    gridRows.forEach(r => {
+      const [weekId, weekLabel, itemId, booth, name, unit] = r;
+      const beginning = r[7], ending = r[9];
+      let finalWeekId = (weekId && String(weekId).trim()) ? String(weekId).trim() : weekByLabel[weekLabel || ""];
+      const key = (booth || "") + "||" + (name || "") + "||" + (unit || "");
+      let finalItemId = (itemId && String(itemId).trim()) ? String(itemId).trim() : itemByKey[key];
+      if (!finalWeekId || !finalItemId) return;
+      if (!countUpdates[finalWeekId]) countUpdates[finalWeekId] = {};
+      const entry = {};
+      if (beginning !== undefined && beginning !== "") entry.beginning = parseFloat(beginning);
+      if (ending !== undefined && ending !== "") entry.ending = parseFloat(ending);
+      if (Object.keys(entry).length) countUpdates[finalWeekId][finalItemId] = entry;
+    });
+
+    const itemCount = Object.keys(itemUpdates).length;
+    const weekCount = Object.keys(weekUpdates).length;
+    const countCount = Object.values(countUpdates).reduce((sum, obj) => sum + Object.keys(obj).length, 0);
+
+    if (!confirm(`Import ${itemCount} item row(s), ${weekCount} week row(s), and ${countCount} inventory count update(s)? Nothing outside this file will be changed or deleted.`)) {
+      document.getElementById("invUploadFile").value = "";
+      return;
+    }
+
+    const writes = [];
+    if (itemCount && inventoryItemsRef()) writes.push(inventoryItemsRef().update(itemUpdates));
+    if (weekCount && weeklyAttendanceRef()) writes.push(weeklyAttendanceRef().update(weekUpdates));
+    Object.entries(countUpdates).forEach(([weekId, items]) => {
+      if (inventoryCountsRef()) writes.push(inventoryCountsRef().child(weekId).update(items));
+    });
+
+    Promise.all(writes).then(() => {
+      toast(`Imported ${itemCount} items, ${weekCount} weeks, ${countCount} counts`, "ok");
+      document.getElementById("invUploadFile").value = "";
+    }).catch(err => {
+      console.error(err);
+      toast("Import failed partway through — check the console and try again", "err");
+    });
+  };
+  reader.readAsArrayBuffer(file);
+});
+
+function populateInvWeekSelect() {
+  const sel = document.getElementById("invWeekSelect");
+  if (!sel) return;
+  const current = sel.value;
+  const weeks = Object.entries(weeklyAttendanceData || {}).sort((a, b) => (a[1].order || 0) - (b[1].order || 0));
+  if (!weeks.length) {
+    sel.innerHTML = `<option value="">No weeks set up yet</option>`;
+    return;
+  }
+  sel.innerHTML = weeks.map(([id, w]) => `<option value="${id}">${escapeHtml(w.label || id)}</option>`).join("");
+  if (weeks.some(([id]) => id === current)) sel.value = current;
+  renderInventoryTable();
+}
+
+function currentInvWeekOrder() {
+  const sel = document.getElementById("invWeekSelect");
+  const w = weeklyAttendanceData[sel.value];
+  return w ? w.order : null;
+}
+
+function priorInvWeekId(order) {
+  if (!order) return null;
+  const match = Object.entries(weeklyAttendanceData || {}).find(([id, w]) => w.order === order - 1);
+  return match ? match[0] : null;
+}
+
+document.getElementById("invWeekSelect").addEventListener("change", () => {
+  const w = weeklyAttendanceData[document.getElementById("invWeekSelect").value];
+  document.getElementById("invAttendanceInput").value = w ? (w.expected || "") : "";
+  renderInventoryTable();
+});
+
+document.getElementById("invAttendanceInput").addEventListener("change", () => {
+  const weekId = document.getElementById("invWeekSelect").value;
+  const val = parseFloat(document.getElementById("invAttendanceInput").value);
+  if (!weekId || !weeklyAttendanceRef() || isNaN(val)) return;
+  weeklyAttendanceRef().child(weekId).update({ expected: val }).then(() => renderInventoryTable());
+});
+
+function toggleInvViewMode() {
+  invViewMode = invViewMode === "full" ? "prep" : "full";
+  document.getElementById("invViewToggleBtn").textContent = invViewMode === "full" ? "Prep List View" : "Full View";
+  renderInventoryTable();
+}
+
+function saveInvEnding(weekId, itemId, value) {
+  if (!inventoryCountsRef()) return;
+  const val = value === "" ? null : parseFloat(value);
+  inventoryCountsRef().child(weekId).child(itemId).update({
+    ending: val,
+    enteredBy: loggedInManager ? loggedInManager.name : "",
+    enteredAt: Date.now()
+  });
+}
+
+function saveInvBeginning(weekId, itemId, value) {
+  if (!inventoryCountsRef()) return;
+  const val = value === "" ? null : parseFloat(value);
+  inventoryCountsRef().child(weekId).child(itemId).update({ beginning: val });
+}
+
+function renderInventoryTable() {
+  const wrap = document.getElementById("invTableWrap");
+  const weekSel = document.getElementById("invWeekSelect");
+  if (!wrap || !weekSel) return;
+  const weekId = weekSel.value;
+  const week = weeklyAttendanceData[weekId];
+  const isAdmin = loggedInManager && (loggedInManager.role === "admin" || loggedInManager.role === "superadmin");
+  document.getElementById("invAttendanceField").style.display = isAdmin ? "block" : "none";
+  document.getElementById("invAddItemBox").style.display = isAdmin ? "flex" : "none";
+  document.getElementById("invImportBtn").style.display = isAdmin ? "inline-flex" : "none";
+  document.getElementById("invDownloadBtn").style.display = isAdmin ? "inline-flex" : "none";
+  document.getElementById("invUploadBtn").style.display = isAdmin ? "inline-flex" : "none";
+  if (isAdmin) populateInvBoothList();
+
+  if (!week) {
+    wrap.innerHTML = `<div class="empty">Select or import weeks to get started.</div>`;
+    return;
+  }
+
+  const expected = week.expected || 0;
+  const priorId = priorInvWeekId(week.order);
+  const priorCounts = priorId ? (inventoryCountsData[priorId] || {}) : {};
+  const thisCounts = inventoryCountsData[weekId] || {};
+
+  const byBooth = {};
+  Object.entries(inventoryItemsData || {}).forEach(([id, it]) => {
+    if (!byBooth[it.booth]) byBooth[it.booth] = [];
+    byBooth[it.booth].push({ id, ...it });
+  });
+
+  const boothNames = Object.keys(byBooth).sort();
+  if (!boothNames.length) {
+    wrap.innerHTML = `<div class="empty">No inventory items yet${isAdmin ? " — use Import Starter Data above." : "."}</div>`;
+    return;
+  }
+
+  let html = "";
+  boothNames.forEach(booth => {
+    html += `<div class="booth-card" style="margin-bottom:14px;"><h3 style="margin:0 0 10px;">${escapeHtml(booth)}</h3>`;
+    html += `<table class="log" style="width:100%;"><thead><tr>
+      <th>Item</th><th>Unit</th>
+      ${invViewMode === "full" ? "<th>Par</th><th>Beginning</th>" : ""}
+      <th>Additions${invViewMode === "prep" ? " (Prep This)" : ""}</th>
+      ${invViewMode === "full" ? "<th>Ending</th><th>Usage</th>" : ""}
+    </tr></thead><tbody>`;
+
+    byBooth[booth].forEach(it => {
+      const par = (it.perAttendee || 0) * expected;
+      const priorEnding = priorCounts[it.id] ? priorCounts[it.id].ending : null;
+      const beginning = priorId
+        ? (priorEnding !== null && priorEnding !== undefined ? priorEnding : 0)
+        : (thisCounts[it.id] && thisCounts[it.id].beginning !== null && thisCounts[it.id].beginning !== undefined ? thisCounts[it.id].beginning : null);
+      const beginningVal = beginning === null || beginning === undefined ? 0 : beginning;
+      const additions = Math.max(0, par - beginningVal);
+      const ending = thisCounts[it.id] ? thisCounts[it.id].ending : null;
+      const endingVal = ending === null || ending === undefined ? 0 : ending;
+      const usage = Math.max(0, beginningVal + additions - endingVal);
+
+      html += `<tr>
+        <td>${escapeHtml(it.name)}</td>
+        <td>${escapeHtml(it.unit)}</td>
+        ${invViewMode === "full" ? `
+          <td class="mono">${par.toFixed(2)}</td>
+          <td class="mono">${priorId
+            ? beginningVal.toFixed(2)
+            : `<input type="number" step="0.01" value="${beginning === null ? "": beginning}" style="width:80px;" onchange="saveInvBeginning('${weekId}','${it.id}', this.value); renderInventoryTable();">`}
+          </td>` : ""}
+        <td class="mono">${additions.toFixed(2)}</td>
+        ${invViewMode === "full" ? `
+          <td class="mono"><input type="number" step="0.01" value="${ending === null ? "" : ending}" style="width:80px;" onchange="saveInvEnding('${weekId}','${it.id}', this.value); renderInventoryTable();"></td>
+          <td class="mono">${usage.toFixed(2)}</td>` : ""}
+      </tr>`;
+    });
+
+    html += `</tbody></table></div>`;
+  });
+
+  wrap.innerHTML = html;
+}
+
+function attachInventoryListenersIfNeeded() {
+  if (activeInvItemsListener) { renderInventoryTable(); return; }
+  const ir = inventoryItemsRef();
+  const ar = weeklyAttendanceRef();
+  const cr = inventoryCountsRef();
+  if (!ir || !ar || !cr) return;
+  ir.on("value", (snap) => { inventoryItemsData = snap.val() || {}; renderInventoryTable(); });
+  ar.on("value", (snap) => { weeklyAttendanceData = snap.val() || {}; populateInvWeekSelect(); });
+  cr.on("value", (snap) => { inventoryCountsData = snap.val() || {}; renderInventoryTable(); });
+  activeInvItemsListener = ir;
+  activeInvAttendanceListener = ar;
+  activeInvCountsListener = cr;
+}
+
+function detachInventoryListeners() {
+  if (activeInvItemsListener) activeInvItemsListener.off();
+  if (activeInvAttendanceListener) activeInvAttendanceListener.off();
+  if (activeInvCountsListener) activeInvCountsListener.off();
+  activeInvItemsListener = null;
+  activeInvAttendanceListener = null;
+  activeInvCountsListener = null;
+  inventoryItemsData = {};
+  weeklyAttendanceData = {};
+  inventoryCountsData = {};
+}
+
 function sendEmailNotification(record, checkId) {
   if (!window.emailjs || EMAILJS_SERVICE_ID.startsWith("YOUR-")) {
     console.warn("EmailJS not configured — skipping email send.");
@@ -3839,10 +4335,11 @@ function managerFields(entry) {
       role: entry.role || "manager",
       phone: entry.phone || "",
       email: entry.email || "",
-      canDeliver: entry.canDeliver === true
+      canDeliver: entry.canDeliver === true,
+      canInventory: entry.canInventory === true
     };
   }
-  return { name: entry || "", pin: "", role: "manager", phone: "", email: "", canDeliver: false };
+  return { name: entry || "", pin: "", role: "manager", phone: "", email: "", canDeliver: false, canInventory: false };
 }
 
 function saveManagerRecord(key, overrides) {
@@ -3863,23 +4360,26 @@ function addNewZoneManager() {
   const pinInput = document.getElementById("newZmPin");
   const roleInput = document.getElementById("newZmRole");
   const canDeliverInput = document.getElementById("newZmCanDeliver");
+  const canInventoryInput = document.getElementById("newZmCanInventory");
   const name = nameInput.value.trim();
   const email = emailInput.value.trim();
   const phone = phoneInput.value.trim();
   const pin = pinInput.value.trim();
   const role = roleInput.value;
   const canDeliver = canDeliverInput.checked;
+  const canInventory = canInventoryInput.checked;
   if (!name) { toast("Enter a name first", "err"); return; }
   if (!pin || pin.length < 4) { toast("Enter a PIN of at least 4 digits", "err"); return; }
   if (!zmRef()) { toast("Firebase not configured yet", "err"); return; }
   hashPin(pin).then(pinHash => {
-    zmRef().child(safeZmKey(name)).set({ name, pin: pinHash, role, phone, email, canDeliver });
+    zmRef().child(safeZmKey(name)).set({ name, pin: pinHash, role, phone, email, canDeliver, canInventory });
     nameInput.value = "";
     emailInput.value = "";
     phoneInput.value = "";
     pinInput.value = "";
     roleInput.value = "manager";
     canDeliverInput.checked = false;
+    canInventoryInput.checked = false;
     toast("Manager added", "ok");
   });
 }
@@ -3896,19 +4396,21 @@ function renderManagerPinTable() {
     const f = managerFields(zoneManagersData[key]);
     const roleLabel = f.role === "admin" ? `<span class="tag" style="background:var(--copper); color:#fff;">Admin</span>` : `<span class="tag">Zone Manager</span>`;
     const deliveryLabel = f.canDeliver ? ` <span class="tag" style="background:var(--slate); color:#fff;">Delivery</span>` : "";
+    const inventoryLabel = f.canInventory ? ` <span class="tag" style="background:var(--slate); color:#fff;">Inventory</span>` : "";
     return `
       <tr>
         <td>${escapeHtml(f.name)}</td>
         <td class="mono">${escapeHtml(f.email || "—not set—")}</td>
         <td class="mono">${escapeHtml(f.phone || "—not set—")}</td>
         <td class="mono">${f.pin ? "•••• (set)" : "—not set—"}</td>
-        <td>${roleLabel}${deliveryLabel}</td>
+        <td>${roleLabel}${deliveryLabel}${inventoryLabel}</td>
         <td style="display:flex; gap:6px; flex-wrap:wrap;">
           <button class="btn btn-ghost btn-sm" onclick="editManagerEmail('${key}')">Edit Email</button>
           <button class="btn btn-ghost btn-sm" onclick="editManagerPhone('${key}')">Edit Phone</button>
           <button class="btn btn-ghost btn-sm" onclick="resetManagerPin('${key}')">Change PIN</button>
           <button class="btn btn-ghost btn-sm" onclick="toggleManagerRole('${key}')">${f.role === "admin" ? "Make Manager" : "Make Admin"}</button>
           <button class="btn btn-ghost btn-sm" onclick="toggleManagerDelivery('${key}')">${f.canDeliver ? "Remove Delivery" : "Add Delivery"}</button>
+          <button class="btn btn-ghost btn-sm" onclick="toggleManagerInventory('${key}')">${f.canInventory ? "Remove Inventory" : "Add Inventory"}</button>
           <button class="btn btn-danger btn-sm" onclick="deleteManager('${key}', '${escapeHtml(f.name).replace(/'/g, "\\'")}')">Delete</button>
         </td>
       </tr>`;
@@ -3974,6 +4476,13 @@ function toggleManagerDelivery(key) {
   const newVal = !f.canDeliver;
   saveManagerRecord(key, { canDeliver: newVal });
   toast(`${f.name} ${newVal ? "can now log deliveries" : "no longer logs deliveries"}`, "ok");
+}
+
+function toggleManagerInventory(key) {
+  const f = managerFields(zoneManagersData[key]);
+  const newVal = !f.canInventory;
+  saveManagerRecord(key, { canInventory: newVal });
+  toast(`${f.name} ${newVal ? "can now log inventory counts" : "no longer logs inventory counts"}`, "ok");
 }
 
 function resetManagerPin(key) {
