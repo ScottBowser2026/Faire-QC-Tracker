@@ -617,7 +617,7 @@
 <nav class="tabs">
   <button data-tab="checkView" class="active">New Check</button>
   <button data-tab="boothsView" style="display:none;">Booths &amp; Menus</button>
-  <button data-tab="zoneManagersView" style="display:none;">Zone Managers</button>
+  <button data-tab="zoneManagersView" style="display:none;">Managers</button>
   <button data-tab="historyView">Check Log</button>
   <button data-tab="reportsView" style="display:none;">Reports</button>
   <button data-tab="tastingView" style="display:none;">Food Tasting</button>
@@ -733,7 +733,7 @@
       <div id="qcUploadProgress" style="display:none; font-size:.8rem; color:var(--slate); margin-bottom:10px;">Saving check…</div>
 
       <button class="btn btn-primary" id="qcSubmitBtn" style="width:100%; justify-content:center; padding:12px;">
-        Submit Check &amp; Email
+        Submit Check
       </button>
     </div>
   </section>
@@ -841,7 +841,7 @@
       </div>
 
       <button class="btn btn-primary" id="qtSubmitBtn" style="width:100%; justify-content:center; padding:12px;">
-        Submit Tasting &amp; Email
+        Submit Tasting
       </button>
     </div>
   </section>
@@ -890,9 +890,9 @@
 
   <!-- ===================== ZONE MANAGERS VIEW ===================== -->
   <section id="zoneManagersView" class="view">
-    <div class="section-head"><h2>Zone Manager Assignments</h2></div>
+    <div class="section-head"><h2>Manager Assignments</h2></div>
     <div class="zm-box">
-      <span class="label">Add New Zone Manager</span>
+      <span class="label">Add New Manager</span>
       <input type="text" id="newZmName" placeholder="e.g. Jane Smith" style="max-width:140px;">
       <input type="email" id="newZmEmail" placeholder="Email" style="max-width:150px;">
       <input type="tel" id="newZmPhone" placeholder="Mobile #" style="max-width:120px;">
@@ -901,6 +901,9 @@
         <option value="manager">Zone Manager</option>
         <option value="admin">Admin</option>
       </select>
+      <label style="display:flex; align-items:center; gap:4px; font-size:.85rem;">
+        <input type="checkbox" id="newZmCanDeliver" style="width:auto;"> Delivery
+      </label>
       <button class="btn btn-secondary btn-sm" onclick="addNewZoneManager()">Add</button>
     </div>
 
@@ -1087,15 +1090,13 @@
   <div class="modal-box">
     <h3>What are you logging?</h3>
     <div class="field" style="display:flex; flex-direction:column; gap:10px;">
-      <button class="btn btn-secondary" style="justify-content:flex-start; padding:14px;" onclick="chooseStartMode('check')">
+      <button class="btn btn-secondary" id="startChooserCheckBtn" style="justify-content:flex-start; padding:14px;" onclick="chooseStartMode('check')">
         New Check<br><span class="temp-hint" style="font-weight:normal;">Time and temp check on a menu item</span>
       </button>
-      <button class="btn btn-secondary" style="justify-content:flex-start; padding:14px;" onclick="chooseStartMode('delivery')">
+      <button class="btn btn-secondary" id="startChooserDeliveryBtn" style="justify-content:flex-start; padding:14px;" onclick="chooseStartMode('delivery')">
         Food Delivery<br><span class="temp-hint" style="font-weight:normal;">Log an incoming delivery</span>
       </button>
-      <button class="btn btn-secondary" style="justify-content:flex-start; padding:14px;" onclick="chooseRefrigeration()">
-        Refrigeration Check<br><span class="temp-hint" style="font-weight:normal;">Opens the Refrigeration Tracker</span>
-      </button>
+      <div id="startChooserEmpty" class="empty" style="display:none;">Nothing assigned to you right now — check with your F&amp;B Director.</div>
     </div>
     <div class="modal-actions">
       <button class="btn btn-ghost btn-sm" onclick="closeModal('startChooserOverlay')">Skip</button>
@@ -1396,7 +1397,7 @@ function tryRestoreSessionOnLoad() {
 function loginAsFacilityUser(facilityId, key, entry, cachedMeta) {
   currentFacilityId = facilityId;
   isSuperadmin = false;
-  loggedInManager = { key, name: entry.name, pin: entry.pin, role: entry.role || "manager", facilityId };
+  loggedInManager = { key, name: entry.name, pin: entry.pin, role: entry.role || "manager", canDeliver: entry.canDeliver === true, facilityId };
 
   if (cachedMeta) {
     facilityMetaData = {};
@@ -1727,6 +1728,29 @@ if (db) {
   });
 }
 
+/* ---------------- Foreground/reconnect handling ----------------
+   Mobile browsers throttle or suspend background tabs, and can silently
+   drop the Firebase websocket during a long phone-lock without .info/connected
+   noticing right away. Forcing a clean goOffline/goOnline cycle whenever the
+   app comes back to the foreground guarantees every "value" listener re-fires
+   with current data — keeps the app genuinely live even after sitting on a
+   locked phone all day. */
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible" && db) {
+    db.goOffline();
+    db.goOnline();
+    trySyncPendingQueue();
+    refreshLoginDirectoryCache();
+  }
+});
+window.addEventListener("pageshow", (e) => {
+  if (e.persisted && db) {
+    db.goOffline();
+    db.goOnline();
+    trySyncPendingQueue();
+  }
+});
+
 // Backup sync attempt every 30s (in case the .info/connected listener
 // misses a transition, e.g. flaky signal flapping on/off quickly), plus
 // one immediately on page load in case there's a leftover queue from
@@ -1773,6 +1797,7 @@ function attachFacilityListeners() {
       renderBoothGrid();
       populateBoothSelect();
       populateTastingBoothSelect();
+      if (document.getElementById("startChooserOverlay").classList.contains("show")) updateStartChooserTiles();
       if (activeBoothId) renderBoothDetail(activeBoothId);
       populateHistoryFilter();
       renderZmAssignTable();
@@ -3037,7 +3062,7 @@ function setCheckMode(mode) {
   document.getElementById("qcTicketSub").textContent = isDelivery ? "Incoming delivery verification" : "Time & temperature verification";
   document.getElementById("qcPhotoLabel").textContent = isDelivery ? "Delivery / Thermometer Photo (required)" : "Photo (required)";
   document.getElementById("qcPhotoHint").textContent = isDelivery ? "Snap a photo of the delivery and the thermometer reading." : "Snap a photo of the item/reading as proof of the check.";
-  document.getElementById("qcSubmitBtn").textContent = isDelivery ? "Submit Delivery & Email" : "Submit Check & Email";
+  document.getElementById("qcSubmitBtn").textContent = isDelivery ? "Submit Delivery" : "Submit Check";
 
   if (isDelivery) {
     qcTempField.style.display = "block";
@@ -3050,6 +3075,7 @@ function setCheckMode(mode) {
 }
 
 function openStartChooser() {
+  updateStartChooserTiles();
   document.getElementById("startChooserOverlay").classList.add("show");
 }
 function chooseStartMode(mode) {
@@ -3057,9 +3083,19 @@ function chooseStartMode(mode) {
   document.querySelector('nav.tabs button[data-tab="checkView"]').click();
   setCheckMode(mode);
 }
-function chooseRefrigeration() {
-  window.open("https://scottbowser2026.github.io/Faire-Refrigeration-Tracker/", "_blank");
-  closeModal("startChooserOverlay");
+function computeStartChooserAccess() {
+  if (!loggedInManager) return { showCheck: false, showDelivery: false };
+  if (loggedInManager.role === "admin" || loggedInManager.role === "superadmin") {
+    return { showCheck: true, showDelivery: true };
+  }
+  const ids = Object.keys(boothsData).filter(id => boothHasManager(boothsData[id], loggedInManager.name) && isBoothOpen(boothsData[id]));
+  return { showCheck: ids.length > 0, showDelivery: !!loggedInManager.canDeliver };
+}
+function updateStartChooserTiles() {
+  const access = computeStartChooserAccess();
+  document.getElementById("startChooserCheckBtn").style.display = access.showCheck ? "flex" : "none";
+  document.getElementById("startChooserDeliveryBtn").style.display = access.showDelivery ? "flex" : "none";
+  document.getElementById("startChooserEmpty").style.display = (!access.showCheck && !access.showDelivery) ? "block" : "none";
 }
 
 document.getElementById("qcPhoto2").addEventListener("change", (e) => {
@@ -3802,10 +3838,11 @@ function managerFields(entry) {
       pin: entry.pin || "",
       role: entry.role || "manager",
       phone: entry.phone || "",
-      email: entry.email || ""
+      email: entry.email || "",
+      canDeliver: entry.canDeliver === true
     };
   }
-  return { name: entry || "", pin: "", role: "manager", phone: "", email: "" };
+  return { name: entry || "", pin: "", role: "manager", phone: "", email: "", canDeliver: false };
 }
 
 function saveManagerRecord(key, overrides) {
@@ -3825,22 +3862,25 @@ function addNewZoneManager() {
   const phoneInput = document.getElementById("newZmPhone");
   const pinInput = document.getElementById("newZmPin");
   const roleInput = document.getElementById("newZmRole");
+  const canDeliverInput = document.getElementById("newZmCanDeliver");
   const name = nameInput.value.trim();
   const email = emailInput.value.trim();
   const phone = phoneInput.value.trim();
   const pin = pinInput.value.trim();
   const role = roleInput.value;
+  const canDeliver = canDeliverInput.checked;
   if (!name) { toast("Enter a name first", "err"); return; }
   if (!pin || pin.length < 4) { toast("Enter a PIN of at least 4 digits", "err"); return; }
   if (!zmRef()) { toast("Firebase not configured yet", "err"); return; }
   hashPin(pin).then(pinHash => {
-    zmRef().child(safeZmKey(name)).set({ name, pin: pinHash, role, phone, email });
+    zmRef().child(safeZmKey(name)).set({ name, pin: pinHash, role, phone, email, canDeliver });
     nameInput.value = "";
     emailInput.value = "";
     phoneInput.value = "";
     pinInput.value = "";
     roleInput.value = "manager";
-    toast("Zone Manager added", "ok");
+    canDeliverInput.checked = false;
+    toast("Manager added", "ok");
   });
 }
 
@@ -3849,24 +3889,26 @@ function renderManagerPinTable() {
   if (!body) return;
   const keys = Object.keys(zoneManagersData);
   if (!keys.length) {
-    body.innerHTML = `<tr><td colspan="6" style="text-align:center; color:var(--slate);">No zone managers added yet.</td></tr>`;
+    body.innerHTML = `<tr><td colspan="6" style="text-align:center; color:var(--slate);">No managers added yet.</td></tr>`;
     return;
   }
   body.innerHTML = keys.map(key => {
     const f = managerFields(zoneManagersData[key]);
     const roleLabel = f.role === "admin" ? `<span class="tag" style="background:var(--copper); color:#fff;">Admin</span>` : `<span class="tag">Zone Manager</span>`;
+    const deliveryLabel = f.canDeliver ? ` <span class="tag" style="background:var(--slate); color:#fff;">Delivery</span>` : "";
     return `
       <tr>
         <td>${escapeHtml(f.name)}</td>
         <td class="mono">${escapeHtml(f.email || "—not set—")}</td>
         <td class="mono">${escapeHtml(f.phone || "—not set—")}</td>
         <td class="mono">${f.pin ? "•••• (set)" : "—not set—"}</td>
-        <td>${roleLabel}</td>
+        <td>${roleLabel}${deliveryLabel}</td>
         <td style="display:flex; gap:6px; flex-wrap:wrap;">
           <button class="btn btn-ghost btn-sm" onclick="editManagerEmail('${key}')">Edit Email</button>
           <button class="btn btn-ghost btn-sm" onclick="editManagerPhone('${key}')">Edit Phone</button>
           <button class="btn btn-ghost btn-sm" onclick="resetManagerPin('${key}')">Change PIN</button>
           <button class="btn btn-ghost btn-sm" onclick="toggleManagerRole('${key}')">${f.role === "admin" ? "Make Manager" : "Make Admin"}</button>
+          <button class="btn btn-ghost btn-sm" onclick="toggleManagerDelivery('${key}')">${f.canDeliver ? "Remove Delivery" : "Add Delivery"}</button>
           <button class="btn btn-danger btn-sm" onclick="deleteManager('${key}', '${escapeHtml(f.name).replace(/'/g, "\\'")}')">Delete</button>
         </td>
       </tr>`;
@@ -3925,6 +3967,13 @@ function toggleManagerRole(key) {
   const newRole = f.role === "admin" ? "manager" : "admin";
   saveManagerRecord(key, { role: newRole });
   toast(`${f.name} is now ${newRole === "admin" ? "an Admin" : "a Zone Manager"}`, "ok");
+}
+
+function toggleManagerDelivery(key) {
+  const f = managerFields(zoneManagersData[key]);
+  const newVal = !f.canDeliver;
+  saveManagerRecord(key, { canDeliver: newVal });
+  toast(`${f.name} ${newVal ? "can now log deliveries" : "no longer logs deliveries"}`, "ok");
 }
 
 function resetManagerPin(key) {
