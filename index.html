@@ -620,6 +620,7 @@
   <button data-tab="zoneManagersView" style="display:none;">Zone Managers</button>
   <button data-tab="historyView">Check Log</button>
   <button data-tab="reportsView" style="display:none;">Reports</button>
+  <button data-tab="tastingView" style="display:none;">Food Tasting</button>
   <button data-tab="notesView">Staff Notes</button>
   <button data-tab="facilitiesView" style="display:none;">Facilities</button>
   <button data-tab="superadminsView" style="display:none;">Superadmins</button>
@@ -632,23 +633,51 @@
   <section id="checkView" class="view active">
     <div class="section-head"><h2>Run a Quality Check</h2></div>
     <div class="ticket">
-      <h3>FOOD SAFETY CHECK</h3>
-      <div class="sub">Time &amp; temperature verification</div>
+      <h3 id="qcTicketTitle">FOOD SAFETY CHECK</h3>
+      <div class="sub" id="qcTicketSub">Time &amp; temperature verification</div>
+
+      <div class="field" id="qcModeRow" style="display:flex; gap:8px;">
+        <button type="button" class="btn btn-secondary btn-sm qc-mode-btn active" id="qcModeCheckBtn" onclick="setCheckMode('check')" style="flex:1; justify-content:center;">Check</button>
+        <button type="button" class="btn btn-secondary btn-sm qc-mode-btn" id="qcModeDeliveryBtn" onclick="setCheckMode('delivery')" style="flex:1; justify-content:center;">Food Delivery</button>
+      </div>
 
       <div class="field">
-        <label>Booth</label>
+        <label id="qcBoothLabel">Booth</label>
         <select id="qcBooth"><option value="">Select a booth…</option></select>
       </div>
 
       <div id="qcZmDisplay" class="temp-hint" style="margin:-8px 0 14px;"></div>
 
-      <div class="field">
+      <div class="field" id="qcItemFieldWrap">
         <label>Menu Item</label>
         <select id="qcItem" disabled><option value="">Select booth first…</option></select>
       </div>
 
       <div id="qcBakedNote" class="baked-note" style="display:none;">
         This item is flagged as not temperature-sensitive (e.g. baked good). Only time is logged.
+      </div>
+
+      <div id="qcDeliveryFields" style="display:none;">
+        <div class="field">
+          <label>Vendor / Supplier</label>
+          <input type="text" id="qcVendor" placeholder="e.g. Sysco, local farm name">
+        </div>
+        <div class="field">
+          <label>Item(s) Received</label>
+          <input type="text" id="qcItemsReceived" placeholder="e.g. Ground beef, 40 lb cases">
+        </div>
+        <div class="field">
+          <label>Quantity</label>
+          <input type="text" id="qcQuantity" placeholder="e.g. 4 cases">
+        </div>
+        <div class="field">
+          <label>Condition</label>
+          <select id="qcCondition">
+            <option value="good">Good</option>
+            <option value="damaged">Damaged</option>
+            <option value="rejected">Rejected</option>
+          </select>
+        </div>
       </div>
 
       <div class="field">
@@ -670,12 +699,20 @@
       </div>
 
       <div class="field">
-        <label>Photo (required)</label>
+        <label id="qcPhotoLabel">Photo (required)</label>
         <input type="file" id="qcPhoto" accept="image/*" capture="environment">
         <div id="qcPhotoPreviewWrap" style="display:none; margin-top:8px;">
           <img id="qcPhotoPreview" style="max-width:100%; max-height:180px; border-radius:6px; border:1px solid var(--line);">
         </div>
-        <div class="temp-hint" style="margin-top:5px;">Snap a photo of the item/reading as proof of the check.</div>
+        <div class="temp-hint" style="margin-top:5px;" id="qcPhotoHint">Snap a photo of the item/reading as proof of the check.</div>
+      </div>
+
+      <div class="field" id="qcPhoto2Field" style="display:none;">
+        <label>Condition / Damage Photo (optional)</label>
+        <input type="file" id="qcPhoto2" accept="image/*" capture="environment">
+        <div id="qcPhoto2PreviewWrap" style="display:none; margin-top:8px;">
+          <img id="qcPhoto2Preview" style="max-width:100%; max-height:180px; border-radius:6px; border:1px solid var(--line);">
+        </div>
       </div>
 
       <div class="field">
@@ -697,6 +734,114 @@
 
       <button class="btn btn-primary" id="qcSubmitBtn" style="width:100%; justify-content:center; padding:12px;">
         Submit Check &amp; Email
+      </button>
+    </div>
+  </section>
+
+  <!-- ===================== FOOD TASTING VIEW (Admin/Superadmin) ===================== -->
+  <section id="tastingView" class="view">
+    <div class="section-head"><h2>Food Tasting</h2></div>
+    <div class="ticket">
+      <h3>MENU ITEM TASTING</h3>
+      <div class="sub">Presentation, temperature, and quality attributes</div>
+
+      <div class="field">
+        <label>Booth</label>
+        <select id="qtBooth"><option value="">Select a booth…</option></select>
+      </div>
+
+      <div class="field">
+        <label>Menu Item</label>
+        <select id="qtItem" disabled><option value="">Select booth first…</option></select>
+      </div>
+
+      <div class="field">
+        <label>Tasted By</label>
+        <input type="text" id="qtCheckedBy" placeholder="Your name">
+      </div>
+
+      <div class="field">
+        <label>Tasting Time</label>
+        <input type="datetime-local" id="qtTime">
+      </div>
+
+      <div class="field">
+        <label>Photo as Presented (required)</label>
+        <input type="file" id="qtPhotoPresentation" accept="image/*" capture="environment">
+        <div id="qtPhotoPresentationPreviewWrap" style="display:none; margin-top:8px;">
+          <img id="qtPhotoPresentationPreview" style="max-width:100%; max-height:180px; border-radius:6px; border:1px solid var(--line);">
+        </div>
+      </div>
+
+      <div class="field">
+        <label>Photo of Thermometer (required)</label>
+        <input type="file" id="qtPhotoTemp" accept="image/*" capture="environment">
+        <div id="qtPhotoTempPreviewWrap" style="display:none; margin-top:8px;">
+          <img id="qtPhotoTempPreview" style="max-width:100%; max-height:180px; border-radius:6px; border:1px solid var(--line);">
+        </div>
+      </div>
+
+      <div class="field">
+        <label>Temperature (°F)</label>
+        <input type="number" id="qtTemp" step="0.1" placeholder="e.g. 165">
+      </div>
+
+      <div class="field">
+        <label>Weight</label>
+        <div style="display:flex; gap:8px;">
+          <input type="number" id="qtWeight" step="0.1" placeholder="e.g. 8" style="flex:1;">
+          <select id="qtWeightUnit" style="max-width:90px;">
+            <option value="oz">oz</option>
+            <option value="lb">lb</option>
+            <option value="g">g</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="field">
+        <label>Appearance</label>
+        <select id="qtAppearance">
+          <option value="excellent">Excellent</option>
+          <option value="good">Good</option>
+          <option value="fair">Fair</option>
+          <option value="poor">Poor</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label>Taste</label>
+        <select id="qtTaste">
+          <option value="excellent">Excellent</option>
+          <option value="good">Good</option>
+          <option value="fair">Fair</option>
+          <option value="poor">Poor</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label>Portion Size</label>
+        <select id="qtPortionSize">
+          <option value="correct">Correct</option>
+          <option value="over">Over portioned</option>
+          <option value="under">Under portioned</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label>Notes (optional)</label>
+        <select id="qtNotesSelect">
+          <option value="">— None —</option>
+          <option value="Meets standard — no issue">Meets standard — no issue</option>
+          <option value="Portion inconsistent with recipe">Portion inconsistent with recipe</option>
+          <option value="Presentation needs improvement">Presentation needs improvement</option>
+          <option value="Flagged for recipe/prep review">Flagged for recipe/prep review</option>
+          <option value="__other__">Other (type your own)…</option>
+        </select>
+        <textarea id="qtNotesOther" placeholder="Type your note…" style="display:none; margin-top:8px;"></textarea>
+      </div>
+
+      <button class="btn btn-primary" id="qtSubmitBtn" style="width:100%; justify-content:center; padding:12px;">
+        Submit Tasting &amp; Email
       </button>
     </div>
   </section>
@@ -934,6 +1079,37 @@
     <div class="modal-actions">
       <button class="btn btn-ghost btn-sm" onclick="closeModal('boothModalOverlay')">Cancel</button>
       <button class="btn btn-primary btn-sm" onclick="saveBooth()">Save Booth</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="startChooserOverlay">
+  <div class="modal-box">
+    <h3>What are you logging?</h3>
+    <div class="field" style="display:flex; flex-direction:column; gap:10px;">
+      <button class="btn btn-secondary" style="justify-content:flex-start; padding:14px;" onclick="chooseStartMode('check')">
+        New Check<br><span class="temp-hint" style="font-weight:normal;">Time and temp check on a menu item</span>
+      </button>
+      <button class="btn btn-secondary" style="justify-content:flex-start; padding:14px;" onclick="chooseStartMode('delivery')">
+        Food Delivery<br><span class="temp-hint" style="font-weight:normal;">Log an incoming delivery</span>
+      </button>
+      <button class="btn btn-secondary" style="justify-content:flex-start; padding:14px;" onclick="chooseRefrigeration()">
+        Refrigeration Check<br><span class="temp-hint" style="font-weight:normal;">Opens the Refrigeration Tracker</span>
+      </button>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost btn-sm" onclick="closeModal('startChooserOverlay')">Skip</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="notesAckOverlay">
+  <div class="modal-box">
+    <h3>New staff notes</h3>
+    <div class="temp-hint" style="margin-bottom:12px;">Tap Accept once you've read each note.</div>
+    <div id="notesAckList"></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost btn-sm" onclick="closeModal('notesAckOverlay')">Dismiss</button>
     </div>
   </div>
 </div>
@@ -1289,9 +1465,17 @@ function finishLogin() {
   cb.readOnly = true;
   cb.style.background = "var(--parchment-dim)";
 
+  const qtCb = document.getElementById("qtCheckedBy");
+  if (qtCb) {
+    qtCb.value = loggedInManager.name;
+    qtCb.readOnly = true;
+    qtCb.style.background = "var(--parchment-dim)";
+  }
+
   const boothsTab = document.querySelector('nav.tabs button[data-tab="boothsView"]');
   const zmTab = document.querySelector('nav.tabs button[data-tab="zoneManagersView"]');
   const reportsTab = document.querySelector('nav.tabs button[data-tab="reportsView"]');
+  const tastingTab = document.querySelector('nav.tabs button[data-tab="tastingView"]');
   const facilitiesTab = document.querySelector('nav.tabs button[data-tab="facilitiesView"]');
   const superadminsTab = document.querySelector('nav.tabs button[data-tab="superadminsView"]');
   const dashboardTab = document.querySelector('nav.tabs button[data-tab="dashboardView"]');
@@ -1301,10 +1485,12 @@ function finishLogin() {
     boothsTab.style.display = "";
     zmTab.style.display = "";
     reportsTab.style.display = "";
+    tastingTab.style.display = "";
   } else {
     boothsTab.style.display = "none";
     zmTab.style.display = "none";
     reportsTab.style.display = "none";
+    tastingTab.style.display = "none";
   }
 
   if (isSuperadmin) {
@@ -1330,10 +1516,13 @@ function finishLogin() {
 
   attachFacilityListeners();
   populateBoothSelect();
+  populateTastingBoothSelect();
   renderPendingBadge();
   trySyncPendingQueue();
+  setCheckMode("check");
   if (!isRestoringSession) toast(`Welcome, ${loggedInManager.name}`, "ok");
   isRestoringSession = false;
+  openStartChooser();
 }
 
 function logoutManager() {
@@ -1359,6 +1548,7 @@ function logoutManager() {
   document.querySelector('nav.tabs button[data-tab="boothsView"]').style.display = "none";
   document.querySelector('nav.tabs button[data-tab="zoneManagersView"]').style.display = "none";
   document.querySelector('nav.tabs button[data-tab="reportsView"]').style.display = "none";
+  document.querySelector('nav.tabs button[data-tab="tastingView"]').style.display = "none";
   document.querySelector('nav.tabs button[data-tab="facilitiesView"]').style.display = "none";
   document.querySelector('nav.tabs button[data-tab="superadminsView"]').style.display = "none";
   document.querySelector('nav.tabs button[data-tab="dashboardView"]').style.display = "none";
@@ -1367,6 +1557,10 @@ function logoutManager() {
   document.querySelectorAll(".view").forEach(v => v.classList.remove("active"));
   document.querySelector('nav.tabs button[data-tab="checkView"]').classList.add("active");
   document.getElementById("checkView").classList.add("active");
+  closeModal("startChooserOverlay");
+  closeModal("notesAckOverlay");
+  notesPopupShownThisSession = false;
+  setCheckMode("check");
 }
 
 document.getElementById("loginSubmitBtn").addEventListener("click", attemptLogin);
@@ -1578,6 +1772,7 @@ function attachFacilityListeners() {
       if (currentFacilityId) cacheBoothsForFacility(currentFacilityId, boothsData);
       renderBoothGrid();
       populateBoothSelect();
+      populateTastingBoothSelect();
       if (activeBoothId) renderBoothDetail(activeBoothId);
       populateHistoryFilter();
       renderZmAssignTable();
@@ -1607,6 +1802,7 @@ function attachFacilityListeners() {
     nr.limitToLast(200).on("value", (snap) => {
       notesData = snap.val() || {};
       renderStaffNotes();
+      maybeShowUnackNotes();
     });
     activeNotesListener = nr;
   }
@@ -2823,6 +3019,74 @@ function setDefaultTime() {
 setDefaultTime();
 
 let compressedPhotoDataUrl = null;
+let compressedPhotoDataUrl2 = null;
+let checkMode = "check";
+let notesPopupShownThisSession = false;
+
+function setCheckMode(mode) {
+  checkMode = mode;
+  document.getElementById("qcModeCheckBtn").classList.toggle("active", mode === "check");
+  document.getElementById("qcModeDeliveryBtn").classList.toggle("active", mode === "delivery");
+
+  const isDelivery = mode === "delivery";
+  document.getElementById("qcItemFieldWrap").style.display = isDelivery ? "none" : "block";
+  document.getElementById("qcDeliveryFields").style.display = isDelivery ? "block" : "none";
+  document.getElementById("qcPhoto2Field").style.display = isDelivery ? "block" : "none";
+  document.getElementById("qcBoothLabel").textContent = isDelivery ? "Received At" : "Booth";
+  document.getElementById("qcTicketTitle").textContent = isDelivery ? "FOOD DELIVERY LOG" : "FOOD SAFETY CHECK";
+  document.getElementById("qcTicketSub").textContent = isDelivery ? "Incoming delivery verification" : "Time & temperature verification";
+  document.getElementById("qcPhotoLabel").textContent = isDelivery ? "Delivery / Thermometer Photo (required)" : "Photo (required)";
+  document.getElementById("qcPhotoHint").textContent = isDelivery ? "Snap a photo of the delivery and the thermometer reading." : "Snap a photo of the item/reading as proof of the check.";
+  document.getElementById("qcSubmitBtn").textContent = isDelivery ? "Submit Delivery & Email" : "Submit Check & Email";
+
+  if (isDelivery) {
+    qcTempField.style.display = "block";
+    qcTempMin.textContent = "";
+    qcBakedNote.style.display = "none";
+  } else {
+    qcTempField.style.display = "none";
+    if (qcItemSel.value) qcItemSel.dispatchEvent(new Event("change"));
+  }
+}
+
+function openStartChooser() {
+  document.getElementById("startChooserOverlay").classList.add("show");
+}
+function chooseStartMode(mode) {
+  closeModal("startChooserOverlay");
+  document.querySelector('nav.tabs button[data-tab="checkView"]').click();
+  setCheckMode(mode);
+}
+function chooseRefrigeration() {
+  window.open("https://scottbowser2026.github.io/Faire-Refrigeration-Tracker/", "_blank");
+  closeModal("startChooserOverlay");
+}
+
+document.getElementById("qcPhoto2").addEventListener("change", (e) => {
+  const file = e.target.files[0];
+  const wrap = document.getElementById("qcPhoto2PreviewWrap");
+  const img = document.getElementById("qcPhoto2Preview");
+  compressedPhotoDataUrl2 = null;
+  if (!file) { wrap.style.display = "none"; return; }
+  const reader = new FileReader();
+  reader.onload = (ev) => {
+    const tempImg = new Image();
+    tempImg.onload = () => {
+      const MAX_DIM = 700;
+      let w = tempImg.width, h = tempImg.height;
+      if (w > h && w > MAX_DIM) { h = Math.round(h * MAX_DIM / w); w = MAX_DIM; }
+      else if (h > MAX_DIM) { w = Math.round(w * MAX_DIM / h); h = MAX_DIM; }
+      const canvas = document.createElement("canvas");
+      canvas.width = w; canvas.height = h;
+      canvas.getContext("2d").drawImage(tempImg, 0, 0, w, h);
+      compressedPhotoDataUrl2 = canvas.toDataURL("image/jpeg", 0.45);
+      img.src = compressedPhotoDataUrl2;
+      wrap.style.display = "block";
+    };
+    tempImg.src = ev.target.result;
+  };
+  reader.readAsDataURL(file);
+});
 
 /* ===================================================================
    OFFLINE QUEUE — checks save to this device first, sync automatically
@@ -3024,22 +3288,79 @@ qcItemSel.addEventListener("change", () => {
 document.getElementById("qcSubmitBtn").addEventListener("click", () => {
   if (!loggedInManager) { toast("Please log in with your PIN first", "err"); return; }
   const boothId = qcBoothSel.value;
-  const itemId = qcItemSel.value;
   const checkedBy = document.getElementById("qcCheckedBy").value.trim();
   const checkTime = document.getElementById("qcTime").value;
   const tempVal = document.getElementById("qcTemp").value;
   const notesSelectVal = document.getElementById("qcNotesSelect").value;
   const notes = notesSelectVal === "__other__" ? document.getElementById("qcNotesOther").value.trim() : notesSelectVal;
-
   const isManagerRole = loggedInManager.role !== "admin" && loggedInManager.role !== "superadmin";
 
   if (!boothId) { toast("Select a booth", "err"); return; }
-  if (!itemId) { toast("Select a menu item", "err"); return; }
-  if (!checkedBy) { toast("Enter who's running this check", "err"); return; }
-  if (!checkTime) { toast("Set the check time", "err"); return; }
-  if (!compressedPhotoDataUrl) { toast("A photo is required to submit this check", "err"); return; }
+  if (!checkedBy) { toast("Enter who's running this", "err"); return; }
+  if (!checkTime) { toast("Set the time", "err"); return; }
+  if (!compressedPhotoDataUrl) { toast("A photo is required to submit this", "err"); return; }
 
   const booth = boothsData[boothId];
+
+  if (checkMode === "delivery") {
+    const vendor = document.getElementById("qcVendor").value.trim();
+    const itemsReceived = document.getElementById("qcItemsReceived").value.trim();
+    const quantity = document.getElementById("qcQuantity").value.trim();
+    const condition = document.getElementById("qcCondition").value;
+
+    if (!vendor) { toast("Enter the vendor/supplier", "err"); return; }
+    if (!itemsReceived) { toast("Enter the item(s) received", "err"); return; }
+    if (!quantity) { toast("Enter the quantity", "err"); return; }
+    if (!tempVal) { toast("Enter the arrival temperature", "err"); return; }
+
+    const status = condition === "good" ? "pass" : "fail";
+
+    const record = {
+      type: "delivery",
+      facilityId: currentFacilityId,
+      facilityName: (facilityMetaData[currentFacilityId] && facilityMetaData[currentFacilityId].name) || currentFacilityId,
+      boothId,
+      boothName: booth.name,
+      zoneManager: boothManagerDisplay(booth),
+      itemName: itemsReceived,
+      vendor,
+      itemsReceived,
+      quantity,
+      condition,
+      checkedBy,
+      checkTime,
+      temp: parseFloat(tempVal),
+      minTemp: null,
+      status,
+      notes,
+      photoUrl: compressedPhotoDataUrl,
+      conditionPhotoUrl: compressedPhotoDataUrl2 || null,
+      submittedAt: Date.now()
+    };
+
+    queueCheckLocally(record);
+    toast("Delivery saved on this device — syncing…", "ok");
+    document.getElementById("qcVendor").value = "";
+    document.getElementById("qcItemsReceived").value = "";
+    document.getElementById("qcQuantity").value = "";
+    document.getElementById("qcCondition").value = "good";
+    document.getElementById("qcTemp").value = "";
+    document.getElementById("qcNotesSelect").value = "";
+    document.getElementById("qcNotesOther").value = "";
+    document.getElementById("qcNotesOther").style.display = "none";
+    document.getElementById("qcPhoto").value = "";
+    document.getElementById("qcPhotoPreviewWrap").style.display = "none";
+    document.getElementById("qcPhoto2").value = "";
+    document.getElementById("qcPhoto2PreviewWrap").style.display = "none";
+    compressedPhotoDataUrl = null;
+    compressedPhotoDataUrl2 = null;
+    setDefaultTime();
+    trySyncPendingQueue();
+    return;
+  }
+
+  const itemId = qcItemSel.value;
+  if (!itemId) { toast("Select a menu item", "err"); return; }
   const item = booth.menuItems[itemId];
 
   if (isManagerRole && !boothHasManager(booth, loggedInManager.name)) {
@@ -3067,10 +3388,8 @@ document.getElementById("qcSubmitBtn").addEventListener("click", () => {
     }
   }
 
-  const submitBtn = document.getElementById("qcSubmitBtn");
-  const progressEl = document.getElementById("qcUploadProgress");
-
   const record = {
+    type: "check",
     facilityId: currentFacilityId,
     facilityName: (facilityMetaData[currentFacilityId] && facilityMetaData[currentFacilityId].name) || currentFacilityId,
     boothId,
@@ -3105,6 +3424,191 @@ document.getElementById("qcSubmitBtn").addEventListener("click", () => {
 
   trySyncPendingQueue();
 });
+
+/* ===================================================================
+   FOOD TASTING (Admin/Superadmin only)
+   =================================================================== */
+const qtBoothSel = document.getElementById("qtBooth");
+const qtItemSel = document.getElementById("qtItem");
+let qtPhotoPresentationUrl = null;
+let qtPhotoTempUrl = null;
+
+function populateTastingBoothSelect() {
+  if (!qtBoothSel) return;
+  const current = qtBoothSel.value;
+  const ids = Object.keys(boothsData).sort((a, b) => (boothsData[a].name || "").localeCompare(boothsData[b].name || ""));
+  qtBoothSel.innerHTML = `<option value="">Select a booth…</option>` + ids.map(id =>
+    `<option value="${id}">${escapeHtml(boothsData[id].name || "Unnamed Booth")}</option>`
+  ).join("");
+  if (ids.includes(current)) qtBoothSel.value = current;
+}
+
+qtBoothSel.addEventListener("change", () => {
+  const b = boothsData[qtBoothSel.value];
+  const items = (b && b.menuItems) ? b.menuItems : {};
+  const ids = Object.keys(items);
+  if (!ids.length) {
+    qtItemSel.innerHTML = `<option value="">No menu items for this booth</option>`;
+    qtItemSel.disabled = true;
+  } else {
+    qtItemSel.innerHTML = `<option value="">Select an item…</option>` + ids.map(id =>
+      `<option value="${id}">${escapeHtml(items[id].name || "Unnamed")}</option>`
+    ).join("");
+    qtItemSel.disabled = false;
+  }
+});
+
+function compressToDataUrl(file, cb) {
+  const reader = new FileReader();
+  reader.onload = (ev) => {
+    const tempImg = new Image();
+    tempImg.onload = () => {
+      const MAX_DIM = 700;
+      let w = tempImg.width, h = tempImg.height;
+      if (w > h && w > MAX_DIM) { h = Math.round(h * MAX_DIM / w); w = MAX_DIM; }
+      else if (h > MAX_DIM) { w = Math.round(w * MAX_DIM / h); h = MAX_DIM; }
+      const canvas = document.createElement("canvas");
+      canvas.width = w; canvas.height = h;
+      canvas.getContext("2d").drawImage(tempImg, 0, 0, w, h);
+      cb(canvas.toDataURL("image/jpeg", 0.45));
+    };
+    tempImg.src = ev.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+document.getElementById("qtPhotoPresentation").addEventListener("change", (e) => {
+  const file = e.target.files[0];
+  const wrap = document.getElementById("qtPhotoPresentationPreviewWrap");
+  const img = document.getElementById("qtPhotoPresentationPreview");
+  qtPhotoPresentationUrl = null;
+  if (!file) { wrap.style.display = "none"; return; }
+  compressToDataUrl(file, (url) => { qtPhotoPresentationUrl = url; img.src = url; wrap.style.display = "block"; });
+});
+
+document.getElementById("qtPhotoTemp").addEventListener("change", (e) => {
+  const file = e.target.files[0];
+  const wrap = document.getElementById("qtPhotoTempPreviewWrap");
+  const img = document.getElementById("qtPhotoTempPreview");
+  qtPhotoTempUrl = null;
+  if (!file) { wrap.style.display = "none"; return; }
+  compressToDataUrl(file, (url) => { qtPhotoTempUrl = url; img.src = url; wrap.style.display = "block"; });
+});
+
+document.getElementById("qtNotesSelect").addEventListener("change", (e) => {
+  document.getElementById("qtNotesOther").style.display = e.target.value === "__other__" ? "block" : "none";
+});
+
+function setQtDefaultTime() {
+  const now = new Date();
+  now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+  document.getElementById("qtTime").value = now.toISOString().slice(0,16);
+}
+setQtDefaultTime();
+
+document.getElementById("qtSubmitBtn").addEventListener("click", () => {
+  if (!loggedInManager) { toast("Please log in first", "err"); return; }
+  if (loggedInManager.role !== "admin" && loggedInManager.role !== "superadmin") {
+    toast("Only Admins and Superadmins can log tastings", "err");
+    return;
+  }
+  const boothId = qtBoothSel.value;
+  const itemId = qtItemSel.value;
+  const checkedBy = document.getElementById("qtCheckedBy").value.trim();
+  const checkTime = document.getElementById("qtTime").value;
+  const tempVal = document.getElementById("qtTemp").value;
+  const weightVal = document.getElementById("qtWeight").value;
+  const weightUnit = document.getElementById("qtWeightUnit").value;
+  const appearance = document.getElementById("qtAppearance").value;
+  const taste = document.getElementById("qtTaste").value;
+  const portionSize = document.getElementById("qtPortionSize").value;
+  const notesSelectVal = document.getElementById("qtNotesSelect").value;
+  const notes = notesSelectVal === "__other__" ? document.getElementById("qtNotesOther").value.trim() : notesSelectVal;
+
+  if (!boothId) { toast("Select a booth", "err"); return; }
+  if (!itemId) { toast("Select a menu item", "err"); return; }
+  if (!checkedBy) { toast("Enter who's tasting", "err"); return; }
+  if (!checkTime) { toast("Set the time", "err"); return; }
+  if (!qtPhotoPresentationUrl) { toast("A presentation photo is required", "err"); return; }
+  if (!qtPhotoTempUrl) { toast("A thermometer photo is required", "err"); return; }
+
+  const booth = boothsData[boothId];
+  const item = booth.menuItems[itemId];
+
+  const record = {
+    type: "tasting",
+    facilityId: currentFacilityId,
+    facilityName: (facilityMetaData[currentFacilityId] && facilityMetaData[currentFacilityId].name) || currentFacilityId,
+    boothId,
+    boothName: booth.name,
+    zoneManager: boothManagerDisplay(booth),
+    itemId,
+    itemName: item.name,
+    checkedBy,
+    checkTime,
+    temp: tempVal ? parseFloat(tempVal) : null,
+    minTemp: item.minTemp || null,
+    weight: weightVal ? parseFloat(weightVal) : null,
+    weightUnit,
+    appearance,
+    taste,
+    portionSize,
+    status: "na",
+    notes,
+    photoUrl: qtPhotoPresentationUrl,
+    tempPhotoUrl: qtPhotoTempUrl,
+    submittedAt: Date.now()
+  };
+
+  queueCheckLocally(record);
+  toast("Tasting saved on this device — syncing…", "ok");
+  document.getElementById("qtTemp").value = "";
+  document.getElementById("qtWeight").value = "";
+  document.getElementById("qtNotesSelect").value = "";
+  document.getElementById("qtNotesOther").value = "";
+  document.getElementById("qtNotesOther").style.display = "none";
+  document.getElementById("qtPhotoPresentation").value = "";
+  document.getElementById("qtPhotoPresentationPreviewWrap").style.display = "none";
+  document.getElementById("qtPhotoTemp").value = "";
+  document.getElementById("qtPhotoTempPreviewWrap").style.display = "none";
+  qtPhotoPresentationUrl = null;
+  qtPhotoTempUrl = null;
+  setQtDefaultTime();
+  trySyncPendingQueue();
+});
+
+/* ---------------- Staff Notes acknowledgment popup ---------------- */
+function maybeShowUnackNotes() {
+  if (!loggedInManager || notesPopupShownThisSession) return;
+  const myKey = loggedInManager.key;
+  const unacked = Object.entries(notesData || {}).filter(([id, n]) => n.requiresAck && !(n.ackBy && n.ackBy[myKey]));
+  notesPopupShownThisSession = true;
+  if (!unacked.length) return;
+  unacked.sort((a, b) => (a[1].postedAt || 0) - (b[1].postedAt || 0));
+  renderNotesAckModal(unacked);
+  document.getElementById("notesAckOverlay").classList.add("show");
+}
+
+function renderNotesAckModal(unacked) {
+  const wrap = document.getElementById("notesAckList");
+  if (!wrap) return;
+  wrap.innerHTML = unacked.map(([id, n]) => `
+    <div class="booth-card" style="margin-bottom:10px;">
+      <div style="white-space:pre-wrap; margin-bottom:8px;">${escapeHtml(n.text || "")}</div>
+      <div class="temp-hint" style="margin-bottom:8px;">${escapeHtml(n.postedBy || "Someone")} · ${n.postedAt ? new Date(n.postedAt).toLocaleString() : ""}</div>
+      <button class="btn btn-primary btn-sm" onclick="ackNote('${id}', this)">Accept</button>
+    </div>`).join("");
+}
+
+function ackNote(noteId, btnEl) {
+  if (!loggedInManager || !notesRef()) return;
+  notesRef().child(noteId).child("ackBy").child(loggedInManager.key).set(Date.now()).then(() => {
+    const card = btnEl.closest(".booth-card");
+    if (card) card.remove();
+    const wrap = document.getElementById("notesAckList");
+    if (wrap && !wrap.children.length) closeModal("notesAckOverlay");
+  });
+}
 
 function sendEmailNotification(record, checkId) {
   if (!window.emailjs || EMAILJS_SERVICE_ID.startsWith("YOUR-")) {
@@ -3952,7 +4456,9 @@ function postStaffNote() {
     text,
     postedBy: loggedInManager.name,
     postedByRole: loggedInManager.role,
-    postedAt: Date.now()
+    postedAt: Date.now(),
+    requiresAck: true,
+    ackBy: {}
   }).then(() => {
     textEl.value = "";
     toast("Note posted", "ok");
