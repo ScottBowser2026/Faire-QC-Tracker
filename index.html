@@ -3259,7 +3259,9 @@ function savePendingQueue(queue) {
 
 function queueCheckLocally(record) {
   const queue = getPendingQueue();
-  queue.push({ _localId: "local_" + Date.now() + "_" + Math.random().toString(36).slice(2), record });
+  const localId = record._localId || ("local_" + Date.now() + "_" + Math.random().toString(36).slice(2));
+  record._localId = localId;
+  queue.push({ _localId: localId, record });
   savePendingQueue(queue);
 }
 
@@ -3642,8 +3644,16 @@ function resetDeliveryForm() {
 }
 
 function showCheckResult(record, kind) {
+  // The save (and therefore the sync + instant fail-alert text) happens
+  // right here, the moment this is called — not when the manager dismisses
+  // the screen below. Waiting for a "Continue" tap would mean a manager who
+  // sees a FAILED banner and walks away without tapping through never
+  // actually gets the check saved, and Daniel never gets the text.
   pendingResultRecord = record;
   pendingResultKind = kind;
+  queueCheckLocally(record);
+  toast(`${kind === "delivery" ? "Delivery" : "Check"} saved on this device — syncing…`, "ok");
+  trySyncPendingQueue();
   renderCheckResultBox();
   document.getElementById("checkResultOverlay").classList.add("show");
 }
@@ -3704,6 +3714,28 @@ function renderCheckResultBox() {
   }
 }
 
+function applyResolutionToRecord(localId, fields) {
+  if (!localId) return;
+  // Still sitting in the offline queue (hasn't synced yet) — patch it there;
+  // the next sync attempt will push the corrected version.
+  const queue = getPendingQueue();
+  const idx = queue.findIndex(item => item._localId === localId);
+  if (idx !== -1) {
+    Object.assign(queue[idx].record, fields);
+    savePendingQueue(queue);
+    trySyncPendingQueue();
+    return;
+  }
+  // Already synced to Firebase — find it by its _localId and patch it there.
+  if (!checksRef()) return;
+  checksRef().orderByChild("_localId").equalTo(localId).once("value").then(snap => {
+    const val = snap.val();
+    if (!val) return;
+    const key = Object.keys(val)[0];
+    checksRef().child(key).update(fields);
+  }).catch(err => console.error("Couldn't apply resolution to synced record", err));
+}
+
 function dismissCheckResult(resolve) {
   const r = pendingResultRecord;
   const kind = pendingResultKind;
@@ -3714,16 +3746,15 @@ function dismissCheckResult(resolve) {
     const val = sel ? sel.value : "";
     const resolutionNotes = val === "__other__" ? document.getElementById("resultResolutionOther").value.trim() : val;
     if (resolutionNotes) {
-      r.resolved = true;
-      r.resolvedBy = loggedInManager.name;
-      r.resolvedByRole = loggedInManager.role;
-      r.resolvedAt = Date.now();
-      r.resolutionNotes = resolutionNotes;
+      applyResolutionToRecord(r._localId, {
+        resolved: true,
+        resolvedBy: loggedInManager.name,
+        resolvedByRole: loggedInManager.role,
+        resolvedAt: Date.now(),
+        resolutionNotes
+      });
     }
   }
-
-  queueCheckLocally(r);
-  toast(`${pendingResultKind === "delivery" ? "Delivery" : "Check"} saved on this device — syncing…`, "ok");
 
   closeModal("checkResultOverlay");
   pendingResultRecord = null;
