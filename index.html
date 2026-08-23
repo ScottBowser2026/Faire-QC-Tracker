@@ -581,7 +581,7 @@
       </div>
     </div>
   </div>
-  <div style="position:absolute; bottom:14px; left:0; right:0; text-align:center; font-size:.72rem; color:var(--slate);">Faire Food QC v24</div>
+  <div style="position:absolute; bottom:14px; left:0; right:0; text-align:center; font-size:.72rem; color:var(--slate);">Faire Food QC v26</div>
 </div>
 
 <div class="modal-overlay" id="checkViewerOverlay" style="z-index:400; background:var(--ink);">
@@ -914,7 +914,7 @@
 
 </main>
 
-<footer>Faire Food QC v24 · data synced live via Firebase</footer>
+<footer>Faire Food QC v26 · data synced live via Firebase</footer>
 
 <div class="toast" id="toast"></div>
 
@@ -4021,9 +4021,22 @@ function escapeHtml(str) {
 }
 
 /* ---------------- PWA service worker registration ---------------- */
+// A hard refresh alone doesn't reliably show a new deploy: the browser can
+// still hand that very request to the OUTGOING service worker before the
+// new one finishes taking over, which is why this sometimes looked like it
+// "needed two reloads." Instead, listen for the moment control actually
+// changes hands (fires once skipWaiting + clients.claim in sw.js complete)
+// and reload automatically right then — no more guessing or repeat refreshes.
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
     navigator.serviceWorker.register("sw.js").catch(err => console.warn("SW registration failed", err));
+  });
+
+  let hasReloadedForUpdate = false;
+  navigator.serviceWorker.addEventListener("controllerchange", () => {
+    if (hasReloadedForUpdate) return; // only ever auto-reload once per page load
+    hasReloadedForUpdate = true;
+    window.location.reload();
   });
 }
 </script>
