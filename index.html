@@ -624,6 +624,7 @@
   <button data-tab="reportsView" style="display:none;">Reports</button>
   <button data-tab="tastingView" style="display:none;">Food Tasting</button>
   <button data-tab="inventoryView" style="display:none;">Inventory</button>
+  <button data-tab="barStatusView" style="display:none;">Bar Status</button>
   <button data-tab="notesView">Staff Notes</button>
   <button data-tab="facilitiesView" style="display:none;">Facilities</button>
   <button data-tab="superadminsView" style="display:none;">Superadmins</button>
@@ -915,6 +916,46 @@
     <div id="invTableWrap"></div>
   </section>
 
+  <!-- ===================== BAR STATUS VIEW ===================== -->
+  <section id="barStatusView" class="view">
+    <div class="section-head"><h2>Bar Status</h2></div>
+    <div class="ticket">
+      <h3>BAR STATUS REPORT</h3>
+      <div class="sub">CO2, refrigeration, product, and supply status</div>
+
+      <div class="field">
+        <label>Bar</label>
+        <select id="bsBooth"><option value="">Select a bar…</option></select>
+      </div>
+
+      <div class="field">
+        <label>Status</label>
+        <select id="bsAlertType">
+          <option value="allOk">Everything OK</option>
+          <option value="co2">Out of CO2</option>
+          <option value="refrigeration">Refrigeration Down</option>
+          <option value="outOfProduct">Out of Product</option>
+          <option value="lowSupplies">Low Supplies</option>
+        </select>
+        <div class="temp-hint" id="bsUrgentHint" style="display:none; margin-top:5px; color:var(--copper);">This texts Admins &amp; Superadmins immediately.</div>
+      </div>
+
+      <div class="field" id="bsNoteField">
+        <label id="bsNoteLabel">Note</label>
+        <textarea id="bsNote" placeholder="Which product/style, or other detail…"></textarea>
+      </div>
+
+      <div class="field">
+        <label>Reported By</label>
+        <input type="text" id="bsCheckedBy" placeholder="Your name">
+      </div>
+
+      <button class="btn btn-primary" id="bsSubmitBtn" style="width:100%; justify-content:center; padding:12px;">
+        Submit Status
+      </button>
+    </div>
+  </section>
+
   <!-- ===================== BOOTHS VIEW ===================== -->
   <section id="boothsView" class="view">
 
@@ -1145,15 +1186,44 @@
     <div class="field"><label>Booth Name</label><input type="text" id="boothNameInput" placeholder="e.g. Turkey Leg Tavern"></div>
     <div class="field">
       <label>Type / Group</label>
-      <select id="boothTypeInput">
+      <select id="boothTypeInput" onchange="document.getElementById('boothTypeOtherField').style.display = this.value === '__other__' ? 'block' : 'none';">
         <option value="Concession">Concession</option>
+        <option value="Bar">Bar</option>
         <option value="Catering & Banquet">Catering &amp; Banquet</option>
+        <option value="__other__">Other…</option>
       </select>
+    </div>
+    <div class="field" id="boothTypeOtherField" style="display:none;">
+      <label>Custom Type</label>
+      <input type="text" id="boothTypeOtherInput" placeholder="e.g. Retail, Games">
     </div>
     <div class="field"><label>Zone Manager (optional, can set later)</label><input type="text" id="boothZmInput" placeholder="e.g. Jane Smith"></div>
     <div class="modal-actions">
       <button class="btn btn-ghost btn-sm" onclick="closeModal('boothModalOverlay')">Cancel</button>
       <button class="btn btn-primary btn-sm" onclick="saveBooth()">Save Booth</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="editBoothTypeOverlay">
+  <div class="modal-box">
+    <h3>Edit Booth Type</h3>
+    <div class="field">
+      <label>Type / Group</label>
+      <select id="editBoothTypeSelect" onchange="document.getElementById('editBoothTypeOtherField').style.display = this.value === '__other__' ? 'block' : 'none';">
+        <option value="Concession">Concession</option>
+        <option value="Bar">Bar</option>
+        <option value="Catering & Banquet">Catering &amp; Banquet</option>
+        <option value="__other__">Other…</option>
+      </select>
+    </div>
+    <div class="field" id="editBoothTypeOtherField" style="display:none;">
+      <label>Custom Type</label>
+      <input type="text" id="editBoothTypeOtherInput" placeholder="e.g. Retail, Games">
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost btn-sm" onclick="closeModal('editBoothTypeOverlay')">Cancel</button>
+      <button class="btn btn-primary btn-sm" onclick="saveBoothTypeEdit()">Save</button>
     </div>
   </div>
 </div>
@@ -1174,6 +1244,9 @@
       </button>
       <button class="btn btn-secondary" id="startChooserInventoryBtn" style="justify-content:flex-start; padding:14px;" onclick="chooseStartInventory()">
         Inventory Count<br><span class="temp-hint" style="font-weight:normal;">Log ending inventory counts</span>
+      </button>
+      <button class="btn btn-secondary" id="startChooserBarStatusBtn" style="justify-content:flex-start; padding:14px;" onclick="chooseStartBarStatus()">
+        Bar Status<br><span class="temp-hint" style="font-weight:normal;">Report CO2, refrigeration, or supply issues</span>
       </button>
       <div id="startChooserEmpty" class="empty" style="display:none;">Nothing assigned to you right now — check with your F&amp;B Director.</div>
     </div>
@@ -1559,6 +1632,13 @@ function finishLogin() {
     dvCb.style.background = "var(--parchment-dim)";
   }
 
+  const bsCb = document.getElementById("bsCheckedBy");
+  if (bsCb) {
+    bsCb.value = loggedInManager.name;
+    bsCb.readOnly = true;
+    bsCb.style.background = "var(--parchment-dim)";
+  }
+
   const boothsTab = document.querySelector('nav.tabs button[data-tab="boothsView"]');
   const zmTab = document.querySelector('nav.tabs button[data-tab="zoneManagersView"]');
   const reportsTab = document.querySelector('nav.tabs button[data-tab="reportsView"]');
@@ -1612,6 +1692,7 @@ function finishLogin() {
   attachFacilityListeners();
   populateBoothSelect();
   populateDeliveryBoothSelect();
+  populateBarBoothSelect();
   populateTastingBoothSelect();
   renderPendingBadge();
   trySyncPendingQueue();
@@ -1647,6 +1728,13 @@ function logoutManager() {
     dvCb.style.background = "";
   }
 
+  const bsCb = document.getElementById("bsCheckedBy");
+  if (bsCb) {
+    bsCb.value = "";
+    bsCb.readOnly = false;
+    bsCb.style.background = "";
+  }
+
   document.querySelector('nav.tabs button[data-tab="boothsView"]').style.display = "none";
   document.querySelector('nav.tabs button[data-tab="zoneManagersView"]').style.display = "none";
   document.querySelector('nav.tabs button[data-tab="reportsView"]').style.display = "none";
@@ -1654,6 +1742,7 @@ function logoutManager() {
   document.querySelector('nav.tabs button[data-tab="inventoryView"]').style.display = "none";
   document.querySelector('nav.tabs button[data-tab="historyView"]').style.display = "none";
   document.querySelector('nav.tabs button[data-tab="deliveryView"]').style.display = "none";
+  document.querySelector('nav.tabs button[data-tab="barStatusView"]').style.display = "none";
   document.querySelector('nav.tabs button[data-tab="facilitiesView"]').style.display = "none";
   document.querySelector('nav.tabs button[data-tab="superadminsView"]').style.display = "none";
   document.querySelector('nav.tabs button[data-tab="dashboardView"]').style.display = "none";
@@ -1901,6 +1990,7 @@ function attachFacilityListeners() {
       renderBoothGrid();
       populateBoothSelect();
   populateDeliveryBoothSelect();
+  populateBarBoothSelect();
       populateTastingBoothSelect();
       if (document.getElementById("startChooserOverlay").classList.contains("show")) updateStartChooserTiles();
       updateCheckAndDeliveryTabVisibility();
@@ -1944,6 +2034,7 @@ function attachFacilityListeners() {
       facilityMetaData[currentFacilityId] = snap.val() || { name: currentFacilityId };
       populateBoothSelect();
   populateDeliveryBoothSelect();
+  populateBarBoothSelect();
     });
     activeFacilityMetaListener = fmr;
   }
@@ -2082,16 +2173,37 @@ function setGroupBoothsOpen(groupName, openState) {
   });
 }
 
+let editingBoothTypeId = null;
 function editBoothType(id) {
   const booth = boothsData[id];
   if (!booth) return;
+  editingBoothTypeId = id;
   const current = getBoothType(booth);
-  const newType = prompt("Booth type/group (e.g. Concession, Catering & Banquet):", current);
-  if (newType === null) return;
-  const trimmed = newType.trim();
-  if (!trimmed) { toast("Type can't be empty", "err"); return; }
-  boothsRef().child(id).child("boothType").set(trimmed);
+  const standard = ["Concession", "Bar", "Catering & Banquet"];
+  const sel = document.getElementById("editBoothTypeSelect");
+  const otherField = document.getElementById("editBoothTypeOtherField");
+  const otherInput = document.getElementById("editBoothTypeOtherInput");
+  if (standard.includes(current)) {
+    sel.value = current;
+    otherField.style.display = "none";
+    otherInput.value = "";
+  } else {
+    sel.value = "__other__";
+    otherField.style.display = "block";
+    otherInput.value = current;
+  }
+  openModal("editBoothTypeOverlay");
+}
+
+function saveBoothTypeEdit() {
+  if (!editingBoothTypeId) return;
+  const sel = document.getElementById("editBoothTypeSelect").value;
+  const newType = sel === "__other__" ? document.getElementById("editBoothTypeOtherInput").value.trim() : sel;
+  if (!newType) { toast("Enter a custom type", "err"); return; }
+  boothsRef().child(editingBoothTypeId).child("boothType").set(newType);
+  closeModal("editBoothTypeOverlay");
   toast("Booth type updated", "ok");
+  editingBoothTypeId = null;
 }
 
 /* ---------------- Food Report (downloadable CSV) ---------------- */
@@ -2939,15 +3051,19 @@ function openBoothModal() {
   document.getElementById("boothModalTitle").textContent = "Add Booth";
   document.getElementById("boothNameInput").value = "";
   document.getElementById("boothTypeInput").value = "Concession";
+  document.getElementById("boothTypeOtherField").style.display = "none";
+  document.getElementById("boothTypeOtherInput").value = "";
   document.getElementById("boothZmInput").value = "";
   openModal("boothModalOverlay");
 }
 
 function saveBooth() {
   const name = document.getElementById("boothNameInput").value.trim();
-  const boothType = document.getElementById("boothTypeInput").value;
+  const typeSel = document.getElementById("boothTypeInput").value;
+  const boothType = typeSel === "__other__" ? document.getElementById("boothTypeOtherInput").value.trim() : typeSel;
   const zm = document.getElementById("boothZmInput").value.trim();
   if (!name) { toast("Enter a booth name", "err"); return; }
+  if (typeSel === "__other__" && !boothType) { toast("Enter a custom type", "err"); return; }
   if (!boothsRef()) { toast("Firebase not configured yet", "err"); return; }
   const newRef = boothsRef().push();
   newRef.set({ name, boothType, zoneManager: zm || "", menuItems: {} });
@@ -3180,30 +3296,43 @@ function chooseStartMode(mode) {
   }
 }
 function computeStartChooserAccess() {
-  if (!loggedInManager) return { showCheck: false, showDelivery: false, showInventory: false };
+  if (!loggedInManager) return { showCheck: false, showDelivery: false, showInventory: false, showBarStatus: false };
   if (loggedInManager.role === "admin" || loggedInManager.role === "superadmin") {
-    return { showCheck: true, showDelivery: true, showInventory: true };
+    return { showCheck: true, showDelivery: true, showInventory: true, showBarStatus: true };
   }
   const ids = Object.keys(boothsData).filter(id => boothHasManager(boothsData[id], loggedInManager.name) && isBoothOpen(boothsData[id]));
-  return { showCheck: ids.length > 0, showDelivery: !!loggedInManager.canDeliver, showInventory: !!loggedInManager.canInventory };
+  const barIds = ids.filter(id => getBoothType(boothsData[id]) === "Bar");
+  return {
+    showCheck: ids.length > 0,
+    showDelivery: !!loggedInManager.canDeliver,
+    showInventory: !!loggedInManager.canInventory,
+    showBarStatus: barIds.length > 0
+  };
 }
 function updateStartChooserTiles() {
   const access = computeStartChooserAccess();
   document.getElementById("startChooserCheckBtn").style.display = access.showCheck ? "flex" : "none";
   document.getElementById("startChooserDeliveryBtn").style.display = access.showDelivery ? "flex" : "none";
   document.getElementById("startChooserInventoryBtn").style.display = access.showInventory ? "flex" : "none";
-  document.getElementById("startChooserEmpty").style.display = (!access.showCheck && !access.showDelivery && !access.showInventory) ? "block" : "none";
+  document.getElementById("startChooserBarStatusBtn").style.display = access.showBarStatus ? "flex" : "none";
+  document.getElementById("startChooserEmpty").style.display = (!access.showCheck && !access.showDelivery && !access.showInventory && !access.showBarStatus) ? "block" : "none";
 }
 function updateCheckAndDeliveryTabVisibility() {
   const access = computeStartChooserAccess();
   const checkTab = document.querySelector('nav.tabs button[data-tab="checkView"]');
   const deliveryTab = document.querySelector('nav.tabs button[data-tab="deliveryView"]');
+  const barStatusTab = document.querySelector('nav.tabs button[data-tab="barStatusView"]');
   if (checkTab) checkTab.style.display = access.showCheck ? "" : "none";
   if (deliveryTab) deliveryTab.style.display = access.showDelivery ? "" : "none";
+  if (barStatusTab) barStatusTab.style.display = access.showBarStatus ? "" : "none";
 }
 function chooseStartInventory() {
   closeModal("startChooserOverlay");
   document.querySelector('nav.tabs button[data-tab="inventoryView"]').click();
+}
+function chooseStartBarStatus() {
+  closeModal("startChooserOverlay");
+  document.querySelector('nav.tabs button[data-tab="barStatusView"]').click();
 }
 
 document.getElementById("dvPhoto2").addEventListener("change", (e) => {
@@ -3916,6 +4045,91 @@ document.getElementById("qtSubmitBtn").addEventListener("click", () => {
   trySyncPendingQueue();
 });
 
+/* ===================================================================
+   BAR STATUS — quick status reports for Bar-type booths. CO2 and
+   Refrigeration alerts reuse the "checks" node with status:"fail" so
+   they ride the same onCheckFailed Cloud Function/instant-text path as
+   a failed food check. Everything else logs as status:"na" (no text).
+   =================================================================== */
+const bsBoothSel = document.getElementById("bsBooth");
+const BAR_ALERT_LABELS = {
+  allOk: "Everything OK",
+  co2: "Out of CO2",
+  refrigeration: "Refrigeration Down",
+  outOfProduct: "Out of Product",
+  lowSupplies: "Low Supplies"
+};
+const URGENT_BAR_ALERTS = ["co2", "refrigeration"];
+
+function populateBarBoothSelect() {
+  if (!bsBoothSel) return;
+  const current = bsBoothSel.value;
+  const isManagerRole = loggedInManager && loggedInManager.role !== "admin" && loggedInManager.role !== "superadmin";
+  let ids = Object.keys(boothsData).filter(id => getBoothType(boothsData[id]) === "Bar");
+  if (isManagerRole) {
+    ids = ids.filter(id => boothHasManager(boothsData[id], loggedInManager.name) && isBoothOpen(boothsData[id]));
+  }
+  ids.sort((a, b) => (boothsData[a].name || "").localeCompare(boothsData[b].name || ""));
+  bsBoothSel.innerHTML = `<option value="">Select a bar…</option>` + ids.map(id =>
+    `<option value="${id}">${escapeHtml(boothsData[id].name || "Unnamed Bar")}</option>`
+  ).join("");
+  if (ids.includes(current)) bsBoothSel.value = current;
+}
+
+document.getElementById("bsAlertType").addEventListener("change", (e) => {
+  const isUrgent = URGENT_BAR_ALERTS.includes(e.target.value);
+  document.getElementById("bsUrgentHint").style.display = isUrgent ? "block" : "none";
+  const noteLabel = document.getElementById("bsNoteLabel");
+  if (e.target.value === "outOfProduct") {
+    noteLabel.textContent = "Which product/style (required)";
+  } else if (e.target.value === "lowSupplies") {
+    noteLabel.textContent = "What's running low (optional)";
+  } else {
+    noteLabel.textContent = "Note (optional)";
+  }
+});
+
+document.getElementById("bsSubmitBtn").addEventListener("click", () => {
+  if (!loggedInManager) { toast("Please log in with your PIN first", "err"); return; }
+  const boothId = bsBoothSel.value;
+  const alertType = document.getElementById("bsAlertType").value;
+  const note = document.getElementById("bsNote").value.trim();
+  const checkedBy = document.getElementById("bsCheckedBy").value.trim();
+
+  if (!boothId) { toast("Select a bar", "err"); return; }
+  if (!checkedBy) { toast("Enter who's reporting this", "err"); return; }
+  if (alertType === "outOfProduct" && !note) { toast("Enter which product/style is out", "err"); return; }
+
+  const booth = boothsData[boothId];
+  const isUrgent = URGENT_BAR_ALERTS.includes(alertType);
+
+  const record = {
+    type: "barAlert",
+    facilityId: currentFacilityId,
+    facilityName: (facilityMetaData[currentFacilityId] && facilityMetaData[currentFacilityId].name) || currentFacilityId,
+    boothId,
+    boothName: booth.name,
+    zoneManager: boothManagerDisplay(booth),
+    itemName: BAR_ALERT_LABELS[alertType] || alertType,
+    alertType,
+    checkedBy,
+    checkTime: new Date().toISOString().slice(0, 16),
+    temp: null,
+    minTemp: null,
+    status: isUrgent ? "fail" : "na",
+    notes: note,
+    submittedAt: Date.now()
+  };
+
+  queueCheckLocally(record);
+  toast(isUrgent ? "Bar alert sent — texting Admins now" : "Bar status logged", "ok");
+  document.getElementById("bsAlertType").value = "allOk";
+  document.getElementById("bsUrgentHint").style.display = "none";
+  document.getElementById("bsNoteLabel").textContent = "Note (optional)";
+  document.getElementById("bsNote").value = "";
+  trySyncPendingQueue();
+});
+
 /* ---------------- Staff Notes acknowledgment popup ---------------- */
 function maybeShowUnackNotes() {
   if (!loggedInManager || notesPopupShownThisSession) return;
@@ -4374,6 +4588,7 @@ function attachInventoryItemsListenerIfNeeded() {
   ir.on("value", (snap) => {
     inventoryItemsData = snap.val() || {};
     populateDeliveryBoothSelect();
+  populateBarBoothSelect();
     renderInventoryTable();
   });
   activeInvItemsListener = ir;
@@ -4818,6 +5033,7 @@ document.getElementById("facilitySwitcherSelect").addEventListener("change", (e)
   attachFacilityListeners();
   populateBoothSelect();
   populateDeliveryBoothSelect();
+  populateBarBoothSelect();
   toast(`Switched to ${(facilityMetaData[currentFacilityId] && facilityMetaData[currentFacilityId].name) || currentFacilityId}`, "ok");
 });
 
@@ -4962,6 +5178,7 @@ function switchToFacilityFromTab(id) {
   attachFacilityListeners();
   populateBoothSelect();
   populateDeliveryBoothSelect();
+  populateBarBoothSelect();
   document.querySelector('nav.tabs button[data-tab="checkView"]').click();
   toast(`Switched to ${(facilityMetaData[id] && facilityMetaData[id].name) || id}`, "ok");
 }
