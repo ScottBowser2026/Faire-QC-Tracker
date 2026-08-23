@@ -603,7 +603,7 @@
 </div>
 
 <header>
-  <h1><span class="crest">Q</span> Faire Food QC</h1>
+  <h1><span class="crest">Q</span> Faire Food QC <span id="appVersionBadge" style="font-size:.6rem; font-weight:400; opacity:.55; vertical-align:middle; margin-left:6px;"></span></h1>
   <div style="display:flex; align-items:center; gap:8px;">
     <span id="facilitySwitcherWrap" style="display:none;">
       <select id="facilitySwitcherSelect" style="padding:6px 8px; border-radius:6px; border:1px solid rgba(255,255,255,0.25); background:var(--ink-soft); color:var(--parchment); font-size:.85rem;"></select>
@@ -1331,6 +1331,11 @@
 /* =====================================================================
    FIREBASE CONFIG — replace with your project's config
    ===================================================================== */
+// Bump this string with every deploy — shown in the header so it's obvious
+// (even in an incognito window with zero cache) exactly what version is live.
+const APP_VERSION = "v31";
+document.getElementById("appVersionBadge").textContent = APP_VERSION;
+
 const firebaseConfig = {
   apiKey: "AIzaSyAQrAWn29o64MJzrpZ8-7yCDHJQNRVHzpU",
   authDomain: "faire-food-qc.firebaseapp.com",
