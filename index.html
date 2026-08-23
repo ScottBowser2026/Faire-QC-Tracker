@@ -581,6 +581,7 @@
       </div>
     </div>
   </div>
+  <div style="position:absolute; bottom:14px; left:0; right:0; text-align:center; font-size:.72rem; color:var(--slate);">Faire Food QC v24</div>
 </div>
 
 <div class="modal-overlay" id="checkViewerOverlay" style="z-index:400; background:var(--ink);">
@@ -2623,10 +2624,14 @@ function saveBooth() {
   if (!name) { toast("Enter a booth name", "err"); return; }
   if (!boothsRef()) { toast("Firebase not configured yet", "err"); return; }
   const newRef = boothsRef().push();
-  newRef.set({ name, boothType, zoneManager: zm || "", menuItems: {} });
-  if (zm && zmRef()) upsertZoneManagerName(zm);
-  closeModal("boothModalOverlay");
-  toast("Booth added", "ok");
+  newRef.set({ name, boothType, zoneManager: zm || "", menuItems: {} }).then(() => {
+    if (zm && zmRef()) upsertZoneManagerName(zm);
+    closeModal("boothModalOverlay");
+    toast("Booth added", "ok");
+  }).catch(err => {
+    console.error("Failed to save booth", err);
+    toast("Failed to save booth — check your connection and try again", "err");
+  });
 }
 
 function deleteBooth(id) {
@@ -2794,24 +2799,28 @@ function saveItem(keepOpen) {
 
   const itemsRef = boothsRef().child(activeBoothId).child("menuItems");
   const wasEditing = !!editingItemId;
-  if (editingItemId) {
-    itemsRef.child(editingItemId).update(payload);
-  } else {
-    itemsRef.push().set(payload);
-  }
-  toast(wasEditing ? "Item updated" : "Item added", "ok");
+  const writePromise = editingItemId
+    ? itemsRef.child(editingItemId).update(payload)
+    : itemsRef.push().set(payload);
 
-  if (keepOpen && !wasEditing) {
-    // Quick-add mode: clear the name/components for the next item, keep
-    // category and temp settings as-is since catering menus often add
-    // several similar items (same course/category) back to back.
-    document.getElementById("itemNameInput").value = "";
-    pendingComponents = [];
-    renderComponentChips();
-    document.getElementById("itemNameInput").focus();
-  } else {
-    closeModal("itemModalOverlay");
-  }
+  writePromise.then(() => {
+    toast(wasEditing ? "Item updated" : "Item added", "ok");
+
+    if (keepOpen && !wasEditing) {
+      // Quick-add mode: clear the name/components for the next item, keep
+      // category and temp settings as-is since catering menus often add
+      // several similar items (same course/category) back to back.
+      document.getElementById("itemNameInput").value = "";
+      pendingComponents = [];
+      renderComponentChips();
+      document.getElementById("itemNameInput").focus();
+    } else {
+      closeModal("itemModalOverlay");
+    }
+  }).catch(err => {
+    console.error("Failed to save menu item", err);
+    toast("Failed to save — check your connection and try again", "err");
+  });
 }
 
 function deleteItem(itemId) {
@@ -3345,13 +3354,17 @@ function addNewZoneManager() {
   if (!pin || pin.length < 4) { toast("Enter a PIN of at least 4 digits", "err"); return; }
   if (!zmRef()) { toast("Firebase not configured yet", "err"); return; }
   hashPin(pin).then(pinHash => {
-    zmRef().child(safeZmKey(name)).set({ name, pin: pinHash, role, phone, email });
-    nameInput.value = "";
-    emailInput.value = "";
-    phoneInput.value = "";
-    pinInput.value = "";
-    roleInput.value = "manager";
-    toast("Zone Manager added", "ok");
+    return zmRef().child(safeZmKey(name)).set({ name, pin: pinHash, role, phone, email }).then(() => {
+      nameInput.value = "";
+      emailInput.value = "";
+      phoneInput.value = "";
+      pinInput.value = "";
+      roleInput.value = "manager";
+      toast("Zone Manager added", "ok");
+    });
+  }).catch(err => {
+    console.error("Failed to add zone manager", err);
+    toast("Failed to save — check your connection and try again", "err");
   });
 }
 
@@ -3746,10 +3759,13 @@ function addNewSuperadmin() {
   if (!pin || pin.length < 4) { toast("Enter a PIN of at least 4 digits", "err"); return; }
   const key = name.replace(/[.#$/\[\]]/g, "_").replace(/\s+/g, "_");
   hashPin(pin).then(pinHash => {
-    superadminsRef.child(key).set({ name, email, phone, pin: pinHash }).then(() => {
+    return superadminsRef.child(key).set({ name, email, phone, pin: pinHash }).then(() => {
       nameInput.value = ""; emailInput.value = ""; phoneInput.value = ""; pinInput.value = "";
       toast("Superadmin added", "ok");
     });
+  }).catch(err => {
+    console.error("Failed to add superadmin", err);
+    toast("Failed to save — check your connection and try again", "err");
   });
 }
 
