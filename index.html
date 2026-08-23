@@ -1333,7 +1333,7 @@
    ===================================================================== */
 // Bump this string with every deploy — shown in the header so it's obvious
 // (even in an incognito window with zero cache) exactly what version is live.
-const APP_VERSION = "v31";
+const APP_VERSION = "v32";
 document.getElementById("appVersionBadge").textContent = APP_VERSION;
 
 const firebaseConfig = {
@@ -2949,7 +2949,8 @@ function renderArchivedSummary(archive, dateObj) {
 function populateBoothSelect() {
   const sel = document.getElementById("qcBooth");
   const current = sel.value;
-  let ids = Object.keys(boothsData);
+  // Bar booths run through Bar Status, not the food time/temp check flow.
+  let ids = Object.keys(boothsData).filter(id => getBoothType(boothsData[id]) !== "Bar");
 
   const isManagerRole = loggedInManager && loggedInManager.role !== "admin" && loggedInManager.role !== "superadmin";
 
@@ -3307,8 +3308,9 @@ function computeStartChooserAccess() {
   }
   const ids = Object.keys(boothsData).filter(id => boothHasManager(boothsData[id], loggedInManager.name) && isBoothOpen(boothsData[id]));
   const barIds = ids.filter(id => getBoothType(boothsData[id]) === "Bar");
+  const foodIds = ids.filter(id => getBoothType(boothsData[id]) !== "Bar");
   return {
-    showCheck: ids.length > 0,
+    showCheck: foodIds.length > 0,
     showDelivery: !!loggedInManager.canDeliver,
     showInventory: !!loggedInManager.canInventory,
     showBarStatus: barIds.length > 0
