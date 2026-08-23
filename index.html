@@ -1333,7 +1333,7 @@
    ===================================================================== */
 // Bump this string with every deploy — shown in the header so it's obvious
 // (even in an incognito window with zero cache) exactly what version is live.
-const APP_VERSION = "v32";
+const APP_VERSION = "v33";
 document.getElementById("appVersionBadge").textContent = APP_VERSION;
 
 const firebaseConfig = {
@@ -4066,7 +4066,8 @@ const BAR_ALERT_LABELS = {
   outOfProduct: "Out of Product",
   lowSupplies: "Low Supplies"
 };
-const URGENT_BAR_ALERTS = ["co2", "refrigeration"];
+// Every status texts Admins/Superadmins immediately except "Everything OK".
+function isUrgentBarAlert(alertType) { return alertType !== "allOk"; }
 
 function populateBarBoothSelect() {
   if (!bsBoothSel) return;
@@ -4084,7 +4085,7 @@ function populateBarBoothSelect() {
 }
 
 document.getElementById("bsAlertType").addEventListener("change", (e) => {
-  const isUrgent = URGENT_BAR_ALERTS.includes(e.target.value);
+  const isUrgent = isUrgentBarAlert(e.target.value);
   document.getElementById("bsUrgentHint").style.display = isUrgent ? "block" : "none";
   const noteLabel = document.getElementById("bsNoteLabel");
   if (e.target.value === "outOfProduct") {
@@ -4108,7 +4109,7 @@ document.getElementById("bsSubmitBtn").addEventListener("click", () => {
   if (alertType === "outOfProduct" && !note) { toast("Enter which product/style is out", "err"); return; }
 
   const booth = boothsData[boothId];
-  const isUrgent = URGENT_BAR_ALERTS.includes(alertType);
+  const isUrgent = isUrgentBarAlert(alertType);
 
   const record = {
     type: "barAlert",
