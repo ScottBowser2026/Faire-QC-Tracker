@@ -51,7 +51,6 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Zilla+Slab:wght@500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap');
@@ -603,7 +602,7 @@
 </div>
 
 <header>
-  <h1><span class="crest">Q</span> Faire Food QC <span id="appVersionBadge" style="font-size:.6rem; font-weight:400; opacity:.55; vertical-align:middle; margin-left:6px;"></span></h1>
+  <h1><span class="crest">Q</span> Faire Food QC</h1>
   <div style="display:flex; align-items:center; gap:8px;">
     <span id="facilitySwitcherWrap" style="display:none;">
       <select id="facilitySwitcherSelect" style="padding:6px 8px; border-radius:6px; border:1px solid rgba(255,255,255,0.25); background:var(--ink-soft); color:var(--parchment); font-size:.85rem;"></select>
@@ -617,14 +616,10 @@
 
 <nav class="tabs">
   <button data-tab="checkView" class="active">New Check</button>
-  <button data-tab="deliveryView" style="display:none;">Food Delivery</button>
   <button data-tab="boothsView" style="display:none;">Booths &amp; Menus</button>
-  <button data-tab="zoneManagersView" style="display:none;">Managers</button>
-  <button data-tab="historyView" style="display:none;">Check Log</button>
+  <button data-tab="zoneManagersView" style="display:none;">Zone Managers</button>
+  <button data-tab="historyView">Check Log</button>
   <button data-tab="reportsView" style="display:none;">Reports</button>
-  <button data-tab="tastingView" style="display:none;">Food Tasting</button>
-  <button data-tab="inventoryView" style="display:none;">Inventory</button>
-  <button data-tab="barStatusView" style="display:none;">Bar Status</button>
   <button data-tab="notesView">Staff Notes</button>
   <button data-tab="facilitiesView" style="display:none;">Facilities</button>
   <button data-tab="superadminsView" style="display:none;">Superadmins</button>
@@ -698,260 +693,10 @@
         <textarea id="qcNotesOther" placeholder="Type your note…" style="display:none; margin-top:8px;"></textarea>
       </div>
 
+      <div id="qcUploadProgress" style="display:none; font-size:.8rem; color:var(--slate); margin-bottom:10px;">Saving check…</div>
+
       <button class="btn btn-primary" id="qcSubmitBtn" style="width:100%; justify-content:center; padding:12px;">
-        Submit Check
-      </button>
-    </div>
-  </section>
-
-  <!-- ===================== FOOD DELIVERY VIEW ===================== -->
-  <section id="deliveryView" class="view">
-    <div class="section-head"><h2>Log a Food Delivery</h2></div>
-    <div class="ticket">
-      <h3>FOOD DELIVERY LOG</h3>
-      <div class="sub">Incoming delivery verification</div>
-
-      <div class="field">
-        <label>Booth</label>
-        <select id="dvBooth"><option value="">Select a booth…</option></select>
-      </div>
-
-      <div class="field">
-        <label>Prep Item</label>
-        <select id="dvItem" disabled><option value="">Select booth first…</option></select>
-      </div>
-
-      <div class="field">
-        <label id="dvQuantityLabel">Quantity</label>
-        <input type="number" step="0.01" id="dvQuantity" placeholder="e.g. 40">
-      </div>
-
-      <div class="field">
-        <label>Delivery Time</label>
-        <input type="datetime-local" id="dvTime">
-      </div>
-
-      <div class="field">
-        <label>Arrival Temperature (°F)</label>
-        <input type="number" id="dvTemp" step="0.1" placeholder="e.g. 38">
-      </div>
-
-      <div class="field">
-        <label>Received By</label>
-        <input type="text" id="dvCheckedBy" placeholder="Your name">
-      </div>
-
-      <div class="field">
-        <label>Delivery / Thermometer Photo (required)</label>
-        <input type="file" id="dvPhoto" accept="image/*" capture="environment">
-        <div id="dvPhotoPreviewWrap" style="display:none; margin-top:8px;">
-          <img id="dvPhotoPreview" style="max-width:100%; max-height:180px; border-radius:6px; border:1px solid var(--line);">
-        </div>
-        <div class="temp-hint" style="margin-top:5px;">Snap a photo of the delivery and the thermometer reading.</div>
-      </div>
-
-      <div class="field">
-        <label>Condition / Damage Photo (optional)</label>
-        <input type="file" id="dvPhoto2" accept="image/*" capture="environment">
-        <div id="dvPhoto2PreviewWrap" style="display:none; margin-top:8px;">
-          <img id="dvPhoto2Preview" style="max-width:100%; max-height:180px; border-radius:6px; border:1px solid var(--line);">
-        </div>
-      </div>
-
-      <div class="field">
-        <label>Notes (optional)</label>
-        <select id="dvNotesSelect">
-          <option value="">— None —</option>
-          <option value="Delivery accepted">Delivery accepted</option>
-          <option value="Short delivery — see notes">Short delivery — see notes</option>
-          <option value="Item discarded">Item discarded</option>
-          <option value="__other__">Other (type your own)…</option>
-        </select>
-        <textarea id="dvNotesOther" placeholder="Type your note…" style="display:none; margin-top:8px;"></textarea>
-      </div>
-
-      <button class="btn btn-primary" id="dvSubmitBtn" style="width:100%; justify-content:center; padding:12px;">
-        Submit Delivery
-      </button>
-    </div>
-  </section>
-
-  <!-- ===================== FOOD TASTING VIEW (Admin/Superadmin) ===================== -->
-  <section id="tastingView" class="view">
-    <div class="section-head"><h2>Food Tasting</h2></div>
-    <div class="ticket">
-      <h3>MENU ITEM TASTING</h3>
-      <div class="sub">Presentation, temperature, and quality attributes</div>
-
-      <div class="field">
-        <label>Booth</label>
-        <select id="qtBooth"><option value="">Select a booth…</option></select>
-      </div>
-
-      <div class="field">
-        <label>Menu Item</label>
-        <select id="qtItem" disabled><option value="">Select booth first…</option></select>
-      </div>
-
-      <div class="field">
-        <label>Tasted By</label>
-        <input type="text" id="qtCheckedBy" placeholder="Your name">
-      </div>
-
-      <div class="field">
-        <label>Tasting Time</label>
-        <input type="datetime-local" id="qtTime">
-      </div>
-
-      <div class="field">
-        <label>Photo as Presented (required)</label>
-        <input type="file" id="qtPhotoPresentation" accept="image/*" capture="environment">
-        <div id="qtPhotoPresentationPreviewWrap" style="display:none; margin-top:8px;">
-          <img id="qtPhotoPresentationPreview" style="max-width:100%; max-height:180px; border-radius:6px; border:1px solid var(--line);">
-        </div>
-      </div>
-
-      <div class="field">
-        <label>Photo of Thermometer (required)</label>
-        <input type="file" id="qtPhotoTemp" accept="image/*" capture="environment">
-        <div id="qtPhotoTempPreviewWrap" style="display:none; margin-top:8px;">
-          <img id="qtPhotoTempPreview" style="max-width:100%; max-height:180px; border-radius:6px; border:1px solid var(--line);">
-        </div>
-      </div>
-
-      <div class="field">
-        <label>Temperature (°F)</label>
-        <input type="number" id="qtTemp" step="0.1" placeholder="e.g. 165">
-      </div>
-
-      <div class="field">
-        <label>Weight</label>
-        <div style="display:flex; gap:8px;">
-          <input type="number" id="qtWeight" step="0.1" placeholder="e.g. 8" style="flex:1;">
-          <select id="qtWeightUnit" style="max-width:90px;">
-            <option value="oz">oz</option>
-            <option value="lb">lb</option>
-            <option value="g">g</option>
-          </select>
-        </div>
-      </div>
-
-      <div class="field">
-        <label>Appearance</label>
-        <select id="qtAppearance">
-          <option value="excellent">Excellent</option>
-          <option value="good">Good</option>
-          <option value="fair">Fair</option>
-          <option value="poor">Poor</option>
-        </select>
-      </div>
-
-      <div class="field">
-        <label>Taste</label>
-        <select id="qtTaste">
-          <option value="excellent">Excellent</option>
-          <option value="good">Good</option>
-          <option value="fair">Fair</option>
-          <option value="poor">Poor</option>
-        </select>
-      </div>
-
-      <div class="field">
-        <label>Portion Size</label>
-        <select id="qtPortionSize">
-          <option value="correct">Correct</option>
-          <option value="over">Over portioned</option>
-          <option value="under">Under portioned</option>
-        </select>
-      </div>
-
-      <div class="field">
-        <label>Notes (optional)</label>
-        <select id="qtNotesSelect">
-          <option value="">— None —</option>
-          <option value="Meets standard — no issue">Meets standard — no issue</option>
-          <option value="Portion inconsistent with recipe">Portion inconsistent with recipe</option>
-          <option value="Presentation needs improvement">Presentation needs improvement</option>
-          <option value="Flagged for recipe/prep review">Flagged for recipe/prep review</option>
-          <option value="__other__">Other (type your own)…</option>
-        </select>
-        <textarea id="qtNotesOther" placeholder="Type your note…" style="display:none; margin-top:8px;"></textarea>
-      </div>
-
-      <button class="btn btn-primary" id="qtSubmitBtn" style="width:100%; justify-content:center; padding:12px;">
-        Submit Tasting
-      </button>
-    </div>
-  </section>
-
-  <!-- ===================== INVENTORY VIEW ===================== -->
-  <section id="inventoryView" class="view">
-    <div class="section-head">
-      <h2>Prep Inventory</h2>
-      <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
-        <select id="invWeekSelect" style="padding:7px 10px; border:1px solid var(--line); border-radius:6px;"></select>
-        <button class="btn btn-ghost btn-sm" id="invViewToggleBtn" onclick="toggleInvViewMode()">Prep List View</button>
-        <button class="btn btn-secondary btn-sm" id="invImportBtn" style="display:none;" onclick="importStarterInventoryData()">Import Starter Data</button>
-        <button class="btn btn-secondary btn-sm" id="invDownloadBtn" style="display:none;" onclick="exportInventoryWorkbook()">Download Workbook</button>
-        <button class="btn btn-secondary btn-sm" id="invUploadBtn" style="display:none;" onclick="document.getElementById('invUploadFile').click()">Upload Workbook</button>
-        <input type="file" id="invUploadFile" accept=".xlsx" style="display:none;">
-      </div>
-    </div>
-
-    <div class="field" id="invAttendanceField" style="max-width:280px;">
-      <label>Expected Attendance (this weekend)</label>
-      <input type="number" id="invAttendanceInput" placeholder="e.g. 16000">
-    </div>
-
-    <div class="zm-box" id="invAddItemBox" style="display:none; flex-wrap:wrap;">
-      <span class="label">Add Booth / Menu Item</span>
-      <input type="text" id="invNewBooth" list="invBoothList" placeholder="Booth (existing or new)" style="max-width:180px;">
-      <datalist id="invBoothList"></datalist>
-      <input type="text" id="invNewItemName" placeholder="Item name" style="max-width:160px;">
-      <input type="text" id="invNewItemUnit" placeholder="Unit (e.g. lbs, each)" style="max-width:120px;">
-      <input type="number" step="0.0001" id="invNewItemRate" placeholder="Per attendee rate" style="max-width:140px;">
-      <button class="btn btn-secondary btn-sm" onclick="addInventoryItem()">Add Item</button>
-    </div>
-
-    <div id="invTableWrap"></div>
-  </section>
-
-  <!-- ===================== BAR STATUS VIEW ===================== -->
-  <section id="barStatusView" class="view">
-    <div class="section-head"><h2>Bar Status</h2></div>
-    <div class="ticket">
-      <h3>BAR STATUS REPORT</h3>
-      <div class="sub">CO2, refrigeration, product, and supply status</div>
-
-      <div class="field">
-        <label>Bar</label>
-        <select id="bsBooth"><option value="">Select a bar…</option></select>
-      </div>
-
-      <div class="field">
-        <label>Status</label>
-        <select id="bsAlertType">
-          <option value="allOk">Everything OK</option>
-          <option value="co2">Out of CO2</option>
-          <option value="refrigeration">Refrigeration Down</option>
-          <option value="outOfProduct">Out of Product</option>
-          <option value="lowSupplies">Low Supplies</option>
-        </select>
-        <div class="temp-hint" id="bsUrgentHint" style="display:none; margin-top:5px; color:var(--copper);">This texts Admins &amp; Superadmins immediately.</div>
-      </div>
-
-      <div class="field" id="bsNoteField">
-        <label id="bsNoteLabel">Note</label>
-        <textarea id="bsNote" placeholder="Which product/style, or other detail…"></textarea>
-      </div>
-
-      <div class="field">
-        <label>Reported By</label>
-        <input type="text" id="bsCheckedBy" placeholder="Your name">
-      </div>
-
-      <button class="btn btn-primary" id="bsSubmitBtn" style="width:100%; justify-content:center; padding:12px;">
-        Submit Status
+        Submit Check &amp; Email
       </button>
     </div>
   </section>
@@ -1000,9 +745,9 @@
 
   <!-- ===================== ZONE MANAGERS VIEW ===================== -->
   <section id="zoneManagersView" class="view">
-    <div class="section-head"><h2>Manager Assignments</h2></div>
+    <div class="section-head"><h2>Zone Manager Assignments</h2></div>
     <div class="zm-box">
-      <span class="label">Add New Manager</span>
+      <span class="label">Add New Zone Manager</span>
       <input type="text" id="newZmName" placeholder="e.g. Jane Smith" style="max-width:140px;">
       <input type="email" id="newZmEmail" placeholder="Email" style="max-width:150px;">
       <input type="tel" id="newZmPhone" placeholder="Mobile #" style="max-width:120px;">
@@ -1011,12 +756,6 @@
         <option value="manager">Zone Manager</option>
         <option value="admin">Admin</option>
       </select>
-      <label style="display:flex; align-items:center; gap:4px; font-size:.85rem;">
-        <input type="checkbox" id="newZmCanDeliver" style="width:auto;"> Delivery
-      </label>
-      <label style="display:flex; align-items:center; gap:4px; font-size:.85rem;">
-        <input type="checkbox" id="newZmCanInventory" style="width:auto;"> Inventory
-      </label>
       <button class="btn btn-secondary btn-sm" onclick="addNewZoneManager()">Add</button>
     </div>
 
@@ -1186,83 +925,15 @@
     <div class="field"><label>Booth Name</label><input type="text" id="boothNameInput" placeholder="e.g. Turkey Leg Tavern"></div>
     <div class="field">
       <label>Type / Group</label>
-      <select id="boothTypeInput" onchange="document.getElementById('boothTypeOtherField').style.display = this.value === '__other__' ? 'block' : 'none';">
+      <select id="boothTypeInput">
         <option value="Concession">Concession</option>
-        <option value="Bar">Bar</option>
         <option value="Catering & Banquet">Catering &amp; Banquet</option>
-        <option value="__other__">Other…</option>
       </select>
-    </div>
-    <div class="field" id="boothTypeOtherField" style="display:none;">
-      <label>Custom Type</label>
-      <input type="text" id="boothTypeOtherInput" placeholder="e.g. Retail, Games">
     </div>
     <div class="field"><label>Zone Manager (optional, can set later)</label><input type="text" id="boothZmInput" placeholder="e.g. Jane Smith"></div>
     <div class="modal-actions">
       <button class="btn btn-ghost btn-sm" onclick="closeModal('boothModalOverlay')">Cancel</button>
       <button class="btn btn-primary btn-sm" onclick="saveBooth()">Save Booth</button>
-    </div>
-  </div>
-</div>
-
-<div class="modal-overlay" id="editBoothTypeOverlay">
-  <div class="modal-box">
-    <h3>Edit Booth Type</h3>
-    <div class="field">
-      <label>Type / Group</label>
-      <select id="editBoothTypeSelect" onchange="document.getElementById('editBoothTypeOtherField').style.display = this.value === '__other__' ? 'block' : 'none';">
-        <option value="Concession">Concession</option>
-        <option value="Bar">Bar</option>
-        <option value="Catering & Banquet">Catering &amp; Banquet</option>
-        <option value="__other__">Other…</option>
-      </select>
-    </div>
-    <div class="field" id="editBoothTypeOtherField" style="display:none;">
-      <label>Custom Type</label>
-      <input type="text" id="editBoothTypeOtherInput" placeholder="e.g. Retail, Games">
-    </div>
-    <div class="modal-actions">
-      <button class="btn btn-ghost btn-sm" onclick="closeModal('editBoothTypeOverlay')">Cancel</button>
-      <button class="btn btn-primary btn-sm" onclick="saveBoothTypeEdit()">Save</button>
-    </div>
-  </div>
-</div>
-
-<div class="modal-overlay" id="checkResultOverlay">
-  <div class="modal-box" id="checkResultBox"></div>
-</div>
-
-<div class="modal-overlay" id="startChooserOverlay">
-  <div class="modal-box">
-    <h3>What are you logging?</h3>
-    <div class="field" style="display:flex; flex-direction:column; gap:10px;">
-      <button class="btn btn-secondary" id="startChooserCheckBtn" style="justify-content:flex-start; padding:14px;" onclick="chooseStartMode('check')">
-        New Check<br><span class="temp-hint" style="font-weight:normal;">Time and temp check on a menu item</span>
-      </button>
-      <button class="btn btn-secondary" id="startChooserDeliveryBtn" style="justify-content:flex-start; padding:14px;" onclick="chooseStartMode('delivery')">
-        Food Delivery<br><span class="temp-hint" style="font-weight:normal;">Log an incoming delivery</span>
-      </button>
-      <button class="btn btn-secondary" id="startChooserInventoryBtn" style="justify-content:flex-start; padding:14px;" onclick="chooseStartInventory()">
-        Inventory Count<br><span class="temp-hint" style="font-weight:normal;">Log ending inventory counts</span>
-      </button>
-      <button class="btn btn-secondary" id="startChooserBarStatusBtn" style="justify-content:flex-start; padding:14px;" onclick="chooseStartBarStatus()">
-        Bar Status<br><span class="temp-hint" style="font-weight:normal;">Report CO2, refrigeration, or supply issues</span>
-      </button>
-      <div id="startChooserEmpty" class="empty" style="display:none;">Nothing assigned to you right now — check with your F&amp;B Director.</div>
-    </div>
-    <div class="modal-actions">
-      <button class="btn btn-ghost btn-sm" onclick="closeModal('startChooserOverlay')">Skip</button>
-    </div>
-  </div>
-</div>
-
-<div class="modal-overlay" id="notesAckOverlay">
-  <div class="modal-box">
-    <h3>New staff notes</h3>
-    <div class="temp-hint" style="margin-bottom:12px;">Tap Accept once you've read each note.</div>
-    <div id="notesAckList"></div>
-    <div class="modal-actions">
-      <button class="btn btn-ghost btn-sm" onclick="closeModal('notesAckOverlay')">Dismiss</button>
     </div>
   </div>
 </div>
@@ -1331,11 +1002,6 @@
 /* =====================================================================
    FIREBASE CONFIG — replace with your project's config
    ===================================================================== */
-// Bump this string with every deploy — shown in the header so it's obvious
-// (even in an incognito window with zero cache) exactly what version is live.
-const APP_VERSION = "v33";
-document.getElementById("appVersionBadge").textContent = APP_VERSION;
-
 const firebaseConfig = {
   apiKey: "AIzaSyAQrAWn29o64MJzrpZ8-7yCDHJQNRVHzpU",
   authDomain: "faire-food-qc.firebaseapp.com",
@@ -1554,7 +1220,7 @@ function tryRestoreSessionOnLoad() {
 function loginAsFacilityUser(facilityId, key, entry, cachedMeta) {
   currentFacilityId = facilityId;
   isSuperadmin = false;
-  loggedInManager = { key, name: entry.name, pin: entry.pin, role: entry.role || "manager", canDeliver: entry.canDeliver === true, canInventory: entry.canInventory === true, facilityId };
+  loggedInManager = { key, name: entry.name, pin: entry.pin, role: entry.role || "manager", facilityId };
 
   if (cachedMeta) {
     facilityMetaData = {};
@@ -1623,33 +1289,9 @@ function finishLogin() {
   cb.readOnly = true;
   cb.style.background = "var(--parchment-dim)";
 
-  const qtCb = document.getElementById("qtCheckedBy");
-  if (qtCb) {
-    qtCb.value = loggedInManager.name;
-    qtCb.readOnly = true;
-    qtCb.style.background = "var(--parchment-dim)";
-  }
-
-  const dvCb = document.getElementById("dvCheckedBy");
-  if (dvCb) {
-    dvCb.value = loggedInManager.name;
-    dvCb.readOnly = true;
-    dvCb.style.background = "var(--parchment-dim)";
-  }
-
-  const bsCb = document.getElementById("bsCheckedBy");
-  if (bsCb) {
-    bsCb.value = loggedInManager.name;
-    bsCb.readOnly = true;
-    bsCb.style.background = "var(--parchment-dim)";
-  }
-
   const boothsTab = document.querySelector('nav.tabs button[data-tab="boothsView"]');
   const zmTab = document.querySelector('nav.tabs button[data-tab="zoneManagersView"]');
   const reportsTab = document.querySelector('nav.tabs button[data-tab="reportsView"]');
-  const tastingTab = document.querySelector('nav.tabs button[data-tab="tastingView"]');
-  const inventoryTab = document.querySelector('nav.tabs button[data-tab="inventoryView"]');
-  const historyTab = document.querySelector('nav.tabs button[data-tab="historyView"]');
   const facilitiesTab = document.querySelector('nav.tabs button[data-tab="facilitiesView"]');
   const superadminsTab = document.querySelector('nav.tabs button[data-tab="superadminsView"]');
   const dashboardTab = document.querySelector('nav.tabs button[data-tab="dashboardView"]');
@@ -1659,19 +1301,11 @@ function finishLogin() {
     boothsTab.style.display = "";
     zmTab.style.display = "";
     reportsTab.style.display = "";
-    tastingTab.style.display = "";
-    historyTab.style.display = "";
   } else {
     boothsTab.style.display = "none";
     zmTab.style.display = "none";
     reportsTab.style.display = "none";
-    tastingTab.style.display = "none";
-    historyTab.style.display = "none";
   }
-
-  const canSeeInventoryTab = loggedInManager.role === "admin" || loggedInManager.role === "superadmin" || loggedInManager.canInventory;
-  inventoryTab.style.display = canSeeInventoryTab ? "" : "none";
-  updateCheckAndDeliveryTabVisibility();
 
   if (isSuperadmin) {
     facilitiesTab.style.display = "";
@@ -1696,14 +1330,10 @@ function finishLogin() {
 
   attachFacilityListeners();
   populateBoothSelect();
-  populateDeliveryBoothSelect();
-  populateBarBoothSelect();
-  populateTastingBoothSelect();
   renderPendingBadge();
   trySyncPendingQueue();
   if (!isRestoringSession) toast(`Welcome, ${loggedInManager.name}`, "ok");
   isRestoringSession = false;
-  openStartChooser();
 }
 
 function logoutManager() {
@@ -1726,28 +1356,9 @@ function logoutManager() {
   cb.readOnly = false;
   cb.style.background = "";
 
-  const dvCb = document.getElementById("dvCheckedBy");
-  if (dvCb) {
-    dvCb.value = "";
-    dvCb.readOnly = false;
-    dvCb.style.background = "";
-  }
-
-  const bsCb = document.getElementById("bsCheckedBy");
-  if (bsCb) {
-    bsCb.value = "";
-    bsCb.readOnly = false;
-    bsCb.style.background = "";
-  }
-
   document.querySelector('nav.tabs button[data-tab="boothsView"]').style.display = "none";
   document.querySelector('nav.tabs button[data-tab="zoneManagersView"]').style.display = "none";
   document.querySelector('nav.tabs button[data-tab="reportsView"]').style.display = "none";
-  document.querySelector('nav.tabs button[data-tab="tastingView"]').style.display = "none";
-  document.querySelector('nav.tabs button[data-tab="inventoryView"]').style.display = "none";
-  document.querySelector('nav.tabs button[data-tab="historyView"]').style.display = "none";
-  document.querySelector('nav.tabs button[data-tab="deliveryView"]').style.display = "none";
-  document.querySelector('nav.tabs button[data-tab="barStatusView"]').style.display = "none";
   document.querySelector('nav.tabs button[data-tab="facilitiesView"]').style.display = "none";
   document.querySelector('nav.tabs button[data-tab="superadminsView"]').style.display = "none";
   document.querySelector('nav.tabs button[data-tab="dashboardView"]').style.display = "none";
@@ -1756,9 +1367,6 @@ function logoutManager() {
   document.querySelectorAll(".view").forEach(v => v.classList.remove("active"));
   document.querySelector('nav.tabs button[data-tab="checkView"]').classList.add("active");
   document.getElementById("checkView").classList.add("active");
-  closeModal("startChooserOverlay");
-  closeModal("notesAckOverlay");
-  notesPopupShownThisSession = false;
 }
 
 document.getElementById("loginSubmitBtn").addEventListener("click", attemptLogin);
@@ -1925,29 +1533,6 @@ if (db) {
   });
 }
 
-/* ---------------- Foreground/reconnect handling ----------------
-   Mobile browsers throttle or suspend background tabs, and can silently
-   drop the Firebase websocket during a long phone-lock without .info/connected
-   noticing right away. Forcing a clean goOffline/goOnline cycle whenever the
-   app comes back to the foreground guarantees every "value" listener re-fires
-   with current data — keeps the app genuinely live even after sitting on a
-   locked phone all day. */
-document.addEventListener("visibilitychange", () => {
-  if (document.visibilityState === "visible" && db) {
-    db.goOffline();
-    db.goOnline();
-    trySyncPendingQueue();
-    refreshLoginDirectoryCache();
-  }
-});
-window.addEventListener("pageshow", (e) => {
-  if (e.persisted && db) {
-    db.goOffline();
-    db.goOnline();
-    trySyncPendingQueue();
-  }
-});
-
 // Backup sync attempt every 30s (in case the .info/connected listener
 // misses a transition, e.g. flaky signal flapping on/off quickly), plus
 // one immediately on page load in case there's a leftover queue from
@@ -1965,7 +1550,6 @@ document.querySelectorAll("nav.tabs button").forEach(btn => {
     if (btn.dataset.tab === "historyView") attachChecksListenerIfNeeded();
     if (btn.dataset.tab === "dashboardView") attachDashboardListenersIfNeeded();
     if (btn.dataset.tab === "reportsView") openReportsTab();
-    if (btn.dataset.tab === "inventoryView") attachInventoryListenersIfNeeded();
   });
 });
 
@@ -1994,11 +1578,6 @@ function attachFacilityListeners() {
       if (currentFacilityId) cacheBoothsForFacility(currentFacilityId, boothsData);
       renderBoothGrid();
       populateBoothSelect();
-  populateDeliveryBoothSelect();
-  populateBarBoothSelect();
-      populateTastingBoothSelect();
-      if (document.getElementById("startChooserOverlay").classList.contains("show")) updateStartChooserTiles();
-      updateCheckAndDeliveryTabVisibility();
       if (activeBoothId) renderBoothDetail(activeBoothId);
       populateHistoryFilter();
       renderZmAssignTable();
@@ -2028,7 +1607,6 @@ function attachFacilityListeners() {
     nr.limitToLast(200).on("value", (snap) => {
       notesData = snap.val() || {};
       renderStaffNotes();
-      maybeShowUnackNotes();
     });
     activeNotesListener = nr;
   }
@@ -2038,13 +1616,9 @@ function attachFacilityListeners() {
     fmr.on("value", (snap) => {
       facilityMetaData[currentFacilityId] = snap.val() || { name: currentFacilityId };
       populateBoothSelect();
-  populateDeliveryBoothSelect();
-  populateBarBoothSelect();
     });
     activeFacilityMetaListener = fmr;
   }
-
-  attachInventoryItemsListenerIfNeeded();
 }
 
 function detachFacilityListeners() {
@@ -2062,7 +1636,6 @@ function detachFacilityListeners() {
   zoneManagersData = {};
   checksData = {};
   notesData = {};
-  detachInventoryListeners();
   renderBoothGrid();
   populateHistoryFilter();
   renderZmAssignTable();
@@ -2075,15 +1648,30 @@ function detachFacilityListeners() {
 // someone actually opens the Check Log tab — this is the single biggest
 // data cost in the app, so it stays off by default to keep routine check
 // submission lean on a limited connection.
+//
+// Queries by an actual DATE RANGE (last 14 days), not a raw record count.
+// A count-based cap (limitToLast) silently drops the OLDEST records once
+// the count is exceeded — on a busy day with 150+ checks, that meant
+// everything before some cutoff time that day just vanished from the
+// log, which is exactly the bug this replaced. A time-based window can't
+// do that: a busy day just returns more rows, never fewer.
+// Live check data only exists for ~3 days before the auto-archive/cleanup
+// Cloud Function clears it (see functions/index.js, GRACE_PERIOD_DAYS).
+// A few extra days of margin here costs nothing (those days will just come
+// back empty) but guards against the cleanup job running a bit late.
+const CHECKS_HISTORY_WINDOW_DAYS = 5;
+
 function attachChecksListenerIfNeeded() {
   if (activeChecksListener) { renderHistory(); return; } // already loaded this session
   const cr = checksRef();
   if (!cr) return;
-  cr.limitToLast(150).on("value", (snap) => {
+  const cutoff = Date.now() - CHECKS_HISTORY_WINDOW_DAYS * 24 * 60 * 60 * 1000;
+  const query = cr.orderByChild("submittedAt").startAt(cutoff);
+  query.on("value", (snap) => {
     checksData = snap.val() || {};
     renderHistory();
   });
-  activeChecksListener = cr;
+  activeChecksListener = query;
 }
 
 let collapsedBoothGroups = {}; // { groupName: true/false }
@@ -2178,37 +1766,16 @@ function setGroupBoothsOpen(groupName, openState) {
   });
 }
 
-let editingBoothTypeId = null;
 function editBoothType(id) {
   const booth = boothsData[id];
   if (!booth) return;
-  editingBoothTypeId = id;
   const current = getBoothType(booth);
-  const standard = ["Concession", "Bar", "Catering & Banquet"];
-  const sel = document.getElementById("editBoothTypeSelect");
-  const otherField = document.getElementById("editBoothTypeOtherField");
-  const otherInput = document.getElementById("editBoothTypeOtherInput");
-  if (standard.includes(current)) {
-    sel.value = current;
-    otherField.style.display = "none";
-    otherInput.value = "";
-  } else {
-    sel.value = "__other__";
-    otherField.style.display = "block";
-    otherInput.value = current;
-  }
-  openModal("editBoothTypeOverlay");
-}
-
-function saveBoothTypeEdit() {
-  if (!editingBoothTypeId) return;
-  const sel = document.getElementById("editBoothTypeSelect").value;
-  const newType = sel === "__other__" ? document.getElementById("editBoothTypeOtherInput").value.trim() : sel;
-  if (!newType) { toast("Enter a custom type", "err"); return; }
-  boothsRef().child(editingBoothTypeId).child("boothType").set(newType);
-  closeModal("editBoothTypeOverlay");
+  const newType = prompt("Booth type/group (e.g. Concession, Catering & Banquet):", current);
+  if (newType === null) return;
+  const trimmed = newType.trim();
+  if (!trimmed) { toast("Type can't be empty", "err"); return; }
+  boothsRef().child(id).child("boothType").set(trimmed);
   toast("Booth type updated", "ok");
-  editingBoothTypeId = null;
 }
 
 /* ---------------- Food Report (downloadable CSV) ---------------- */
@@ -2949,8 +2516,7 @@ function renderArchivedSummary(archive, dateObj) {
 function populateBoothSelect() {
   const sel = document.getElementById("qcBooth");
   const current = sel.value;
-  // Bar booths run through Bar Status, not the food time/temp check flow.
-  let ids = Object.keys(boothsData).filter(id => getBoothType(boothsData[id]) !== "Bar");
+  let ids = Object.keys(boothsData);
 
   const isManagerRole = loggedInManager && loggedInManager.role !== "admin" && loggedInManager.role !== "superadmin";
 
@@ -2969,17 +2535,6 @@ function populateBoothSelect() {
     `<option value="${id}">${escapeHtml(boothsData[id].name || "Unnamed Booth")}</option>`
   ).join("");
   if (ids.includes(current)) sel.value = current;
-}
-
-function populateDeliveryBoothSelect() {
-  const sel = document.getElementById("dvBooth");
-  if (!sel) return;
-  const current = sel.value;
-  const booths = Array.from(new Set(Object.values(inventoryItemsData || {}).map(it => it.booth).filter(Boolean))).sort();
-  sel.innerHTML = `<option value="">Select a booth…</option>` + booths.map(b =>
-    `<option value="${escapeHtml(b)}">${escapeHtml(b)}</option>`
-  ).join("");
-  if (booths.includes(current)) sel.value = current;
 }
 
 function populateHistoryFilter() {
@@ -3057,19 +2612,15 @@ function openBoothModal() {
   document.getElementById("boothModalTitle").textContent = "Add Booth";
   document.getElementById("boothNameInput").value = "";
   document.getElementById("boothTypeInput").value = "Concession";
-  document.getElementById("boothTypeOtherField").style.display = "none";
-  document.getElementById("boothTypeOtherInput").value = "";
   document.getElementById("boothZmInput").value = "";
   openModal("boothModalOverlay");
 }
 
 function saveBooth() {
   const name = document.getElementById("boothNameInput").value.trim();
-  const typeSel = document.getElementById("boothTypeInput").value;
-  const boothType = typeSel === "__other__" ? document.getElementById("boothTypeOtherInput").value.trim() : typeSel;
+  const boothType = document.getElementById("boothTypeInput").value;
   const zm = document.getElementById("boothZmInput").value.trim();
   if (!name) { toast("Enter a booth name", "err"); return; }
-  if (typeSel === "__other__" && !boothType) { toast("Enter a custom type", "err"); return; }
   if (!boothsRef()) { toast("Firebase not configured yet", "err"); return; }
   const newRef = boothsRef().push();
   newRef.set({ name, boothType, zoneManager: zm || "", menuItems: {} });
@@ -3287,86 +2838,6 @@ function setDefaultTime() {
 setDefaultTime();
 
 let compressedPhotoDataUrl = null;
-let notesPopupShownThisSession = false;
-
-function openStartChooser() {
-  updateStartChooserTiles();
-  document.getElementById("startChooserOverlay").classList.add("show");
-}
-function chooseStartMode(mode) {
-  closeModal("startChooserOverlay");
-  if (mode === "delivery") {
-    document.querySelector('nav.tabs button[data-tab="deliveryView"]').click();
-  } else {
-    document.querySelector('nav.tabs button[data-tab="checkView"]').click();
-  }
-}
-function computeStartChooserAccess() {
-  if (!loggedInManager) return { showCheck: false, showDelivery: false, showInventory: false, showBarStatus: false };
-  if (loggedInManager.role === "admin" || loggedInManager.role === "superadmin") {
-    return { showCheck: true, showDelivery: true, showInventory: true, showBarStatus: true };
-  }
-  const ids = Object.keys(boothsData).filter(id => boothHasManager(boothsData[id], loggedInManager.name) && isBoothOpen(boothsData[id]));
-  const barIds = ids.filter(id => getBoothType(boothsData[id]) === "Bar");
-  const foodIds = ids.filter(id => getBoothType(boothsData[id]) !== "Bar");
-  return {
-    showCheck: foodIds.length > 0,
-    showDelivery: !!loggedInManager.canDeliver,
-    showInventory: !!loggedInManager.canInventory,
-    showBarStatus: barIds.length > 0
-  };
-}
-function updateStartChooserTiles() {
-  const access = computeStartChooserAccess();
-  document.getElementById("startChooserCheckBtn").style.display = access.showCheck ? "flex" : "none";
-  document.getElementById("startChooserDeliveryBtn").style.display = access.showDelivery ? "flex" : "none";
-  document.getElementById("startChooserInventoryBtn").style.display = access.showInventory ? "flex" : "none";
-  document.getElementById("startChooserBarStatusBtn").style.display = access.showBarStatus ? "flex" : "none";
-  document.getElementById("startChooserEmpty").style.display = (!access.showCheck && !access.showDelivery && !access.showInventory && !access.showBarStatus) ? "block" : "none";
-}
-function updateCheckAndDeliveryTabVisibility() {
-  const access = computeStartChooserAccess();
-  const checkTab = document.querySelector('nav.tabs button[data-tab="checkView"]');
-  const deliveryTab = document.querySelector('nav.tabs button[data-tab="deliveryView"]');
-  const barStatusTab = document.querySelector('nav.tabs button[data-tab="barStatusView"]');
-  if (checkTab) checkTab.style.display = access.showCheck ? "" : "none";
-  if (deliveryTab) deliveryTab.style.display = access.showDelivery ? "" : "none";
-  if (barStatusTab) barStatusTab.style.display = access.showBarStatus ? "" : "none";
-}
-function chooseStartInventory() {
-  closeModal("startChooserOverlay");
-  document.querySelector('nav.tabs button[data-tab="inventoryView"]').click();
-}
-function chooseStartBarStatus() {
-  closeModal("startChooserOverlay");
-  document.querySelector('nav.tabs button[data-tab="barStatusView"]').click();
-}
-
-document.getElementById("dvPhoto2").addEventListener("change", (e) => {
-  const file = e.target.files[0];
-  const wrap = document.getElementById("dvPhoto2PreviewWrap");
-  const img = document.getElementById("dvPhoto2Preview");
-  dvPhotoDataUrl2 = null;
-  if (!file) { wrap.style.display = "none"; return; }
-  const reader = new FileReader();
-  reader.onload = (ev) => {
-    const tempImg = new Image();
-    tempImg.onload = () => {
-      const MAX_DIM = 700;
-      let w = tempImg.width, h = tempImg.height;
-      if (w > h && w > MAX_DIM) { h = Math.round(h * MAX_DIM / w); w = MAX_DIM; }
-      else if (h > MAX_DIM) { w = Math.round(w * MAX_DIM / h); h = MAX_DIM; }
-      const canvas = document.createElement("canvas");
-      canvas.width = w; canvas.height = h;
-      canvas.getContext("2d").drawImage(tempImg, 0, 0, w, h);
-      dvPhotoDataUrl2 = canvas.toDataURL("image/jpeg", 0.45);
-      img.src = dvPhotoDataUrl2;
-      wrap.style.display = "block";
-    };
-    tempImg.src = ev.target.result;
-  };
-  reader.readAsDataURL(file);
-});
 
 /* ===================================================================
    OFFLINE QUEUE — checks save to this device first, sync automatically
@@ -3395,9 +2866,7 @@ function savePendingQueue(queue) {
 
 function queueCheckLocally(record) {
   const queue = getPendingQueue();
-  const localId = record._localId || ("local_" + Date.now() + "_" + Math.random().toString(36).slice(2));
-  record._localId = localId;
-  queue.push({ _localId: localId, record });
+  queue.push({ _localId: "local_" + Date.now() + "_" + Math.random().toString(36).slice(2), record });
   savePendingQueue(queue);
 }
 
@@ -3570,21 +3039,22 @@ qcItemSel.addEventListener("change", () => {
 document.getElementById("qcSubmitBtn").addEventListener("click", () => {
   if (!loggedInManager) { toast("Please log in with your PIN first", "err"); return; }
   const boothId = qcBoothSel.value;
+  const itemId = qcItemSel.value;
   const checkedBy = document.getElementById("qcCheckedBy").value.trim();
   const checkTime = document.getElementById("qcTime").value;
   const tempVal = document.getElementById("qcTemp").value;
   const notesSelectVal = document.getElementById("qcNotesSelect").value;
   const notes = notesSelectVal === "__other__" ? document.getElementById("qcNotesOther").value.trim() : notesSelectVal;
+
   const isManagerRole = loggedInManager.role !== "admin" && loggedInManager.role !== "superadmin";
 
   if (!boothId) { toast("Select a booth", "err"); return; }
-  if (!checkedBy) { toast("Enter who's running this", "err"); return; }
-  if (!checkTime) { toast("Set the time", "err"); return; }
-  if (!compressedPhotoDataUrl) { toast("A photo is required to submit this", "err"); return; }
+  if (!itemId) { toast("Select a menu item", "err"); return; }
+  if (!checkedBy) { toast("Enter who's running this check", "err"); return; }
+  if (!checkTime) { toast("Set the check time", "err"); return; }
+  if (!compressedPhotoDataUrl) { toast("A photo is required to submit this check", "err"); return; }
 
   const booth = boothsData[boothId];
-  const itemId = qcItemSel.value;
-  if (!itemId) { toast("Select a menu item", "err"); return; }
   const item = booth.menuItems[itemId];
 
   if (isManagerRole && !boothHasManager(booth, loggedInManager.name)) {
@@ -3612,8 +3082,10 @@ document.getElementById("qcSubmitBtn").addEventListener("click", () => {
     }
   }
 
+  const submitBtn = document.getElementById("qcSubmitBtn");
+  const progressEl = document.getElementById("qcUploadProgress");
+
   const record = {
-    type: "check",
     facilityId: currentFacilityId,
     facilityName: (facilityMetaData[currentFacilityId] && facilityMetaData[currentFacilityId].name) || currentFacilityId,
     boothId,
@@ -3631,128 +3103,12 @@ document.getElementById("qcSubmitBtn").addEventListener("click", () => {
     submittedAt: Date.now()
   };
 
-  showCheckResult(record, "check");
-});
-
-const dvBoothSel = document.getElementById("dvBooth");
-const dvItemSel = document.getElementById("dvItem");
-let dvPhotoDataUrl = null;
-let dvPhotoDataUrl2 = null;
-
-dvBoothSel.addEventListener("change", () => {
-  const booth = dvBoothSel.value;
-  const items = Object.entries(inventoryItemsData || {}).filter(([id, it]) => it.booth === booth);
-  if (!booth || !items.length) {
-    dvItemSel.innerHTML = `<option value="">${booth ? "No prep items for this booth" : "Select booth first…"}</option>`;
-    dvItemSel.disabled = true;
-    document.getElementById("dvQuantityLabel").textContent = "Quantity";
-    return;
-  }
-  items.sort((a, b) => (a[1].name || "").localeCompare(b[1].name || ""));
-  dvItemSel.innerHTML = `<option value="">Select an item…</option>` + items.map(([id, it]) =>
-    `<option value="${id}">${escapeHtml(it.name || "Unnamed")} (${escapeHtml(it.unit || "")})</option>`
-  ).join("");
-  dvItemSel.disabled = false;
-  document.getElementById("dvQuantityLabel").textContent = "Quantity";
-});
-
-dvItemSel.addEventListener("change", () => {
-  const it = inventoryItemsData[dvItemSel.value];
-  document.getElementById("dvQuantityLabel").textContent = it ? `Quantity (${it.unit || ""})` : "Quantity";
-});
-
-document.getElementById("dvPhoto").addEventListener("change", (e) => {
-  const file = e.target.files[0];
-  const wrap = document.getElementById("dvPhotoPreviewWrap");
-  const img = document.getElementById("dvPhotoPreview");
-  dvPhotoDataUrl = null;
-  if (!file) { wrap.style.display = "none"; return; }
-  const reader = new FileReader();
-  reader.onload = (ev) => {
-    const tempImg = new Image();
-    tempImg.onload = () => {
-      const MAX_DIM = 700;
-      let w = tempImg.width, h = tempImg.height;
-      if (w > h && w > MAX_DIM) { h = Math.round(h * MAX_DIM / w); w = MAX_DIM; }
-      else if (h > MAX_DIM) { w = Math.round(w * MAX_DIM / h); h = MAX_DIM; }
-      const canvas = document.createElement("canvas");
-      canvas.width = w; canvas.height = h;
-      canvas.getContext("2d").drawImage(tempImg, 0, 0, w, h);
-      dvPhotoDataUrl = canvas.toDataURL("image/jpeg", 0.45);
-      img.src = dvPhotoDataUrl;
-      wrap.style.display = "block";
-    };
-    tempImg.src = ev.target.result;
-  };
-  reader.readAsDataURL(file);
-});
-
-function setDvDefaultTime() {
-  const now = new Date();
-  now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
-  document.getElementById("dvTime").value = now.toISOString().slice(0,16);
-}
-setDvDefaultTime();
-
-document.getElementById("dvNotesSelect").addEventListener("change", (e) => {
-  document.getElementById("dvNotesOther").style.display = e.target.value === "__other__" ? "block" : "none";
-});
-
-document.getElementById("dvSubmitBtn").addEventListener("click", () => {
-  if (!loggedInManager) { toast("Please log in with your PIN first", "err"); return; }
-  const booth = dvBoothSel.value;
-  const itemId = dvItemSel.value;
-  const checkedBy = document.getElementById("dvCheckedBy").value.trim();
-  const checkTime = document.getElementById("dvTime").value;
-  const tempVal = document.getElementById("dvTemp").value;
-  const notesSelectVal = document.getElementById("dvNotesSelect").value;
-  const notes = notesSelectVal === "__other__" ? document.getElementById("dvNotesOther").value.trim() : notesSelectVal;
-
-  if (!booth) { toast("Select a booth", "err"); return; }
-  if (!itemId) { toast("Select a prep item", "err"); return; }
-  if (!checkedBy) { toast("Enter who's running this", "err"); return; }
-  if (!checkTime) { toast("Set the time", "err"); return; }
-  if (!dvPhotoDataUrl) { toast("A photo is required to submit this", "err"); return; }
-
-  const item = inventoryItemsData[itemId];
-  const quantityVal = document.getElementById("dvQuantity").value;
-
-  if (!quantityVal) { toast("Enter the quantity", "err"); return; }
-  if (!tempVal) { toast("Enter the arrival temperature", "err"); return; }
-
-  const record = {
-    type: "delivery",
-    facilityId: currentFacilityId,
-    facilityName: (facilityMetaData[currentFacilityId] && facilityMetaData[currentFacilityId].name) || currentFacilityId,
-    boothName: booth,
-    itemId,
-    itemName: item.name,
-    unit: item.unit || "",
-    quantity: parseFloat(quantityVal),
-    checkedBy,
-    checkTime,
-    temp: parseFloat(tempVal),
-    minTemp: null,
-    status: "na",
-    notes,
-    photoUrl: dvPhotoDataUrl,
-    conditionPhotoUrl: dvPhotoDataUrl2 || null,
-    submittedAt: Date.now()
-  };
-
-  showCheckResult(record, "delivery");
-});
-
-/* ---------------- Check/Delivery result + rectify screen ----------------
-   Submitting no longer just toasts and clears the form — it shows the
-   outcome (pass/fail) first. A failed check or rejected delivery can be
-   rectified right there (resolution logged into the same record) before
-   moving on to the next one. Nothing is saved to the device/Firebase
-   until the manager dismisses this screen. */
-let pendingResultRecord = null;
-let pendingResultKind = null;
-
-function resetCheckForm() {
+  // Save locally FIRST — this always "succeeds" instantly regardless of
+  // connectivity, since it's just writing to the device, not the network.
+  // A background sync (triggered below, and whenever connection returns)
+  // pushes it to Firebase the moment a signal is available.
+  queueCheckLocally(record);
+  toast("Check saved on this device — syncing…", "ok");
   document.getElementById("qcTemp").value = "";
   document.getElementById("qcNotesSelect").value = "";
   document.getElementById("qcNotesOther").value = "";
@@ -3761,870 +3117,9 @@ function resetCheckForm() {
   document.getElementById("qcPhotoPreviewWrap").style.display = "none";
   compressedPhotoDataUrl = null;
   setDefaultTime();
-}
 
-function resetDeliveryForm() {
-  document.getElementById("dvQuantity").value = "";
-  document.getElementById("dvQuantityLabel").textContent = "Quantity";
-  document.getElementById("dvTemp").value = "";
-  document.getElementById("dvNotesSelect").value = "";
-  document.getElementById("dvNotesOther").value = "";
-  document.getElementById("dvNotesOther").style.display = "none";
-  document.getElementById("dvPhoto").value = "";
-  document.getElementById("dvPhotoPreviewWrap").style.display = "none";
-  document.getElementById("dvPhoto2").value = "";
-  document.getElementById("dvPhoto2PreviewWrap").style.display = "none";
-  dvPhotoDataUrl = null;
-  dvPhotoDataUrl2 = null;
-  setDvDefaultTime();
-}
-
-function showCheckResult(record, kind) {
-  // The save (and therefore the sync + instant fail-alert text) happens
-  // right here, the moment this is called — not when the manager dismisses
-  // the screen below. Waiting for a "Continue" tap would mean a manager who
-  // sees a FAILED banner and walks away without tapping through never
-  // actually gets the check saved, and Daniel never gets the text.
-  pendingResultRecord = record;
-  pendingResultKind = kind;
-  queueCheckLocally(record);
-  toast(`${kind === "delivery" ? "Delivery" : "Check"} saved on this device — syncing…`, "ok");
-  trySyncPendingQueue();
-  renderCheckResultBox();
-  document.getElementById("checkResultOverlay").classList.add("show");
-}
-
-function renderCheckResultBox() {
-  const r = pendingResultRecord;
-  const box = document.getElementById("checkResultBox");
-  const passed = r.status === "pass";
-  const naStatus = r.status === "na";
-  const banner = naStatus
-    ? `<div style="background:var(--parchment-dim); padding:14px; border-radius:8px; text-align:center; font-weight:600; margin-bottom:14px;">LOGGED — no temp required</div>`
-    : `<div style="background:${passed ? "#DCEEDD" : "#F5D6D6"}; color:${passed ? "#1F5C2A" : "#8C2222"}; padding:14px; border-radius:8px; text-align:center; font-weight:700; font-size:1.1rem; margin-bottom:14px;">${passed ? "✓ PASSED" : "✕ FAILED"}</div>`;
-
-  const label = pendingResultKind === "delivery" ? "Delivery" : "Check";
-  const itemLine = pendingResultKind === "delivery"
-    ? `${escapeHtml(r.itemName)} — ${r.quantity} ${escapeHtml(r.unit || "")}`
-    : escapeHtml(r.itemName);
-
-  let html = `<h3>${label} Result</h3>${banner}`;
-  html += `<table style="width:100%; font-size:.9rem; margin-bottom:14px;">
-    <tr><td style="color:var(--slate); padding:3px 0;">Booth</td><td style="text-align:right;">${escapeHtml(r.boothName)}</td></tr>
-    <tr><td style="color:var(--slate); padding:3px 0;">${pendingResultKind === "delivery" ? "Item(s)" : "Item"}</td><td style="text-align:right;">${itemLine}</td></tr>
-    ${r.temp !== null ? `<tr><td style="color:var(--slate); padding:3px 0;">Temp</td><td style="text-align:right;">${r.temp}°F</td></tr>` : ""}
-    <tr><td style="color:var(--slate); padding:3px 0;">Time</td><td style="text-align:right;">${escapeHtml(r.checkTime)}</td></tr>
-  </table>`;
-
-  if (!passed && !naStatus) {
-    html += `
-      <div class="field">
-        <label>Rectify now (optional)</label>
-        <select id="resultResolutionSelect">
-          <option value="">— Not resolved yet —</option>
-          <option value="Reheated to safe temp">Reheated to safe temp</option>
-          <option value="Item discarded">Item discarded</option>
-          <option value="New batch started">New batch started</option>
-          <option value="Retested — now passing">Retested — now passing</option>
-          <option value="__other__">Other (type your own)…</option>
-        </select>
-        <textarea id="resultResolutionOther" placeholder="Type resolution…" style="display:none; margin-top:8px;"></textarea>
-      </div>
-      <div class="modal-actions">
-        <button class="btn btn-ghost btn-sm" onclick="dismissCheckResult(false)">Continue Without Resolving</button>
-        <button class="btn btn-primary btn-sm" onclick="dismissCheckResult(true)">Mark Resolved &amp; Continue</button>
-      </div>`;
-  } else {
-    html += `<div class="modal-actions">
-      <button class="btn btn-primary btn-sm" onclick="dismissCheckResult(false)">Continue</button>
-    </div>`;
-  }
-
-  box.innerHTML = html;
-
-  const sel = document.getElementById("resultResolutionSelect");
-  if (sel) {
-    sel.addEventListener("change", (e) => {
-      document.getElementById("resultResolutionOther").style.display = e.target.value === "__other__" ? "block" : "none";
-    });
-  }
-}
-
-function applyResolutionToRecord(localId, fields) {
-  if (!localId) return;
-  // Still sitting in the offline queue (hasn't synced yet) — patch it there;
-  // the next sync attempt will push the corrected version.
-  const queue = getPendingQueue();
-  const idx = queue.findIndex(item => item._localId === localId);
-  if (idx !== -1) {
-    Object.assign(queue[idx].record, fields);
-    savePendingQueue(queue);
-    trySyncPendingQueue();
-    return;
-  }
-  // Already synced to Firebase — find it by its _localId and patch it there.
-  if (!checksRef()) return;
-  checksRef().orderByChild("_localId").equalTo(localId).once("value").then(snap => {
-    const val = snap.val();
-    if (!val) return;
-    const key = Object.keys(val)[0];
-    checksRef().child(key).update(fields);
-  }).catch(err => console.error("Couldn't apply resolution to synced record", err));
-}
-
-function dismissCheckResult(resolve) {
-  const r = pendingResultRecord;
-  const kind = pendingResultKind;
-  if (!r) return;
-
-  if (resolve) {
-    const sel = document.getElementById("resultResolutionSelect");
-    const val = sel ? sel.value : "";
-    const resolutionNotes = val === "__other__" ? document.getElementById("resultResolutionOther").value.trim() : val;
-    if (resolutionNotes) {
-      applyResolutionToRecord(r._localId, {
-        resolved: true,
-        resolvedBy: loggedInManager.name,
-        resolvedByRole: loggedInManager.role,
-        resolvedAt: Date.now(),
-        resolutionNotes
-      });
-    }
-  }
-
-  closeModal("checkResultOverlay");
-  pendingResultRecord = null;
-  pendingResultKind = null;
-
-  if (kind === "delivery") resetDeliveryForm(); else resetCheckForm();
-  trySyncPendingQueue();
-}
-
-/* ===================================================================
-   FOOD TASTING (Admin/Superadmin only)
-   =================================================================== */
-const qtBoothSel = document.getElementById("qtBooth");
-const qtItemSel = document.getElementById("qtItem");
-let qtPhotoPresentationUrl = null;
-let qtPhotoTempUrl = null;
-
-function populateTastingBoothSelect() {
-  if (!qtBoothSel) return;
-  const current = qtBoothSel.value;
-  const ids = Object.keys(boothsData).sort((a, b) => (boothsData[a].name || "").localeCompare(boothsData[b].name || ""));
-  qtBoothSel.innerHTML = `<option value="">Select a booth…</option>` + ids.map(id =>
-    `<option value="${id}">${escapeHtml(boothsData[id].name || "Unnamed Booth")}</option>`
-  ).join("");
-  if (ids.includes(current)) qtBoothSel.value = current;
-}
-
-qtBoothSel.addEventListener("change", () => {
-  const b = boothsData[qtBoothSel.value];
-  const items = (b && b.menuItems) ? b.menuItems : {};
-  const ids = Object.keys(items);
-  if (!ids.length) {
-    qtItemSel.innerHTML = `<option value="">No menu items for this booth</option>`;
-    qtItemSel.disabled = true;
-  } else {
-    qtItemSel.innerHTML = `<option value="">Select an item…</option>` + ids.map(id =>
-      `<option value="${id}">${escapeHtml(items[id].name || "Unnamed")}</option>`
-    ).join("");
-    qtItemSel.disabled = false;
-  }
-});
-
-function compressToDataUrl(file, cb) {
-  const reader = new FileReader();
-  reader.onload = (ev) => {
-    const tempImg = new Image();
-    tempImg.onload = () => {
-      const MAX_DIM = 700;
-      let w = tempImg.width, h = tempImg.height;
-      if (w > h && w > MAX_DIM) { h = Math.round(h * MAX_DIM / w); w = MAX_DIM; }
-      else if (h > MAX_DIM) { w = Math.round(w * MAX_DIM / h); h = MAX_DIM; }
-      const canvas = document.createElement("canvas");
-      canvas.width = w; canvas.height = h;
-      canvas.getContext("2d").drawImage(tempImg, 0, 0, w, h);
-      cb(canvas.toDataURL("image/jpeg", 0.45));
-    };
-    tempImg.src = ev.target.result;
-  };
-  reader.readAsDataURL(file);
-}
-
-document.getElementById("qtPhotoPresentation").addEventListener("change", (e) => {
-  const file = e.target.files[0];
-  const wrap = document.getElementById("qtPhotoPresentationPreviewWrap");
-  const img = document.getElementById("qtPhotoPresentationPreview");
-  qtPhotoPresentationUrl = null;
-  if (!file) { wrap.style.display = "none"; return; }
-  compressToDataUrl(file, (url) => { qtPhotoPresentationUrl = url; img.src = url; wrap.style.display = "block"; });
-});
-
-document.getElementById("qtPhotoTemp").addEventListener("change", (e) => {
-  const file = e.target.files[0];
-  const wrap = document.getElementById("qtPhotoTempPreviewWrap");
-  const img = document.getElementById("qtPhotoTempPreview");
-  qtPhotoTempUrl = null;
-  if (!file) { wrap.style.display = "none"; return; }
-  compressToDataUrl(file, (url) => { qtPhotoTempUrl = url; img.src = url; wrap.style.display = "block"; });
-});
-
-document.getElementById("qtNotesSelect").addEventListener("change", (e) => {
-  document.getElementById("qtNotesOther").style.display = e.target.value === "__other__" ? "block" : "none";
-});
-
-function setQtDefaultTime() {
-  const now = new Date();
-  now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
-  document.getElementById("qtTime").value = now.toISOString().slice(0,16);
-}
-setQtDefaultTime();
-
-document.getElementById("qtSubmitBtn").addEventListener("click", () => {
-  if (!loggedInManager) { toast("Please log in first", "err"); return; }
-  if (loggedInManager.role !== "admin" && loggedInManager.role !== "superadmin") {
-    toast("Only Admins and Superadmins can log tastings", "err");
-    return;
-  }
-  const boothId = qtBoothSel.value;
-  const itemId = qtItemSel.value;
-  const checkedBy = document.getElementById("qtCheckedBy").value.trim();
-  const checkTime = document.getElementById("qtTime").value;
-  const tempVal = document.getElementById("qtTemp").value;
-  const weightVal = document.getElementById("qtWeight").value;
-  const weightUnit = document.getElementById("qtWeightUnit").value;
-  const appearance = document.getElementById("qtAppearance").value;
-  const taste = document.getElementById("qtTaste").value;
-  const portionSize = document.getElementById("qtPortionSize").value;
-  const notesSelectVal = document.getElementById("qtNotesSelect").value;
-  const notes = notesSelectVal === "__other__" ? document.getElementById("qtNotesOther").value.trim() : notesSelectVal;
-
-  if (!boothId) { toast("Select a booth", "err"); return; }
-  if (!itemId) { toast("Select a menu item", "err"); return; }
-  if (!checkedBy) { toast("Enter who's tasting", "err"); return; }
-  if (!checkTime) { toast("Set the time", "err"); return; }
-  if (!qtPhotoPresentationUrl) { toast("A presentation photo is required", "err"); return; }
-  if (!qtPhotoTempUrl) { toast("A thermometer photo is required", "err"); return; }
-
-  const booth = boothsData[boothId];
-  const item = booth.menuItems[itemId];
-
-  const record = {
-    type: "tasting",
-    facilityId: currentFacilityId,
-    facilityName: (facilityMetaData[currentFacilityId] && facilityMetaData[currentFacilityId].name) || currentFacilityId,
-    boothId,
-    boothName: booth.name,
-    zoneManager: boothManagerDisplay(booth),
-    itemId,
-    itemName: item.name,
-    checkedBy,
-    checkTime,
-    temp: tempVal ? parseFloat(tempVal) : null,
-    minTemp: item.minTemp || null,
-    weight: weightVal ? parseFloat(weightVal) : null,
-    weightUnit,
-    appearance,
-    taste,
-    portionSize,
-    status: "na",
-    notes,
-    photoUrl: qtPhotoPresentationUrl,
-    tempPhotoUrl: qtPhotoTempUrl,
-    submittedAt: Date.now()
-  };
-
-  queueCheckLocally(record);
-  toast("Tasting saved on this device — syncing…", "ok");
-  document.getElementById("qtTemp").value = "";
-  document.getElementById("qtWeight").value = "";
-  document.getElementById("qtNotesSelect").value = "";
-  document.getElementById("qtNotesOther").value = "";
-  document.getElementById("qtNotesOther").style.display = "none";
-  document.getElementById("qtPhotoPresentation").value = "";
-  document.getElementById("qtPhotoPresentationPreviewWrap").style.display = "none";
-  document.getElementById("qtPhotoTemp").value = "";
-  document.getElementById("qtPhotoTempPreviewWrap").style.display = "none";
-  qtPhotoPresentationUrl = null;
-  qtPhotoTempUrl = null;
-  setQtDefaultTime();
   trySyncPendingQueue();
 });
-
-/* ===================================================================
-   BAR STATUS — quick status reports for Bar-type booths. CO2 and
-   Refrigeration alerts reuse the "checks" node with status:"fail" so
-   they ride the same onCheckFailed Cloud Function/instant-text path as
-   a failed food check. Everything else logs as status:"na" (no text).
-   =================================================================== */
-const bsBoothSel = document.getElementById("bsBooth");
-const BAR_ALERT_LABELS = {
-  allOk: "Everything OK",
-  co2: "Out of CO2",
-  refrigeration: "Refrigeration Down",
-  outOfProduct: "Out of Product",
-  lowSupplies: "Low Supplies"
-};
-// Every status texts Admins/Superadmins immediately except "Everything OK".
-function isUrgentBarAlert(alertType) { return alertType !== "allOk"; }
-
-function populateBarBoothSelect() {
-  if (!bsBoothSel) return;
-  const current = bsBoothSel.value;
-  const isManagerRole = loggedInManager && loggedInManager.role !== "admin" && loggedInManager.role !== "superadmin";
-  let ids = Object.keys(boothsData).filter(id => getBoothType(boothsData[id]) === "Bar");
-  if (isManagerRole) {
-    ids = ids.filter(id => boothHasManager(boothsData[id], loggedInManager.name) && isBoothOpen(boothsData[id]));
-  }
-  ids.sort((a, b) => (boothsData[a].name || "").localeCompare(boothsData[b].name || ""));
-  bsBoothSel.innerHTML = `<option value="">Select a bar…</option>` + ids.map(id =>
-    `<option value="${id}">${escapeHtml(boothsData[id].name || "Unnamed Bar")}</option>`
-  ).join("");
-  if (ids.includes(current)) bsBoothSel.value = current;
-}
-
-document.getElementById("bsAlertType").addEventListener("change", (e) => {
-  const isUrgent = isUrgentBarAlert(e.target.value);
-  document.getElementById("bsUrgentHint").style.display = isUrgent ? "block" : "none";
-  const noteLabel = document.getElementById("bsNoteLabel");
-  if (e.target.value === "outOfProduct") {
-    noteLabel.textContent = "Which product/style (required)";
-  } else if (e.target.value === "lowSupplies") {
-    noteLabel.textContent = "What's running low (optional)";
-  } else {
-    noteLabel.textContent = "Note (optional)";
-  }
-});
-
-document.getElementById("bsSubmitBtn").addEventListener("click", () => {
-  if (!loggedInManager) { toast("Please log in with your PIN first", "err"); return; }
-  const boothId = bsBoothSel.value;
-  const alertType = document.getElementById("bsAlertType").value;
-  const note = document.getElementById("bsNote").value.trim();
-  const checkedBy = document.getElementById("bsCheckedBy").value.trim();
-
-  if (!boothId) { toast("Select a bar", "err"); return; }
-  if (!checkedBy) { toast("Enter who's reporting this", "err"); return; }
-  if (alertType === "outOfProduct" && !note) { toast("Enter which product/style is out", "err"); return; }
-
-  const booth = boothsData[boothId];
-  const isUrgent = isUrgentBarAlert(alertType);
-
-  const record = {
-    type: "barAlert",
-    facilityId: currentFacilityId,
-    facilityName: (facilityMetaData[currentFacilityId] && facilityMetaData[currentFacilityId].name) || currentFacilityId,
-    boothId,
-    boothName: booth.name,
-    zoneManager: boothManagerDisplay(booth),
-    itemName: BAR_ALERT_LABELS[alertType] || alertType,
-    alertType,
-    checkedBy,
-    checkTime: new Date().toISOString().slice(0, 16),
-    temp: null,
-    minTemp: null,
-    status: isUrgent ? "fail" : "na",
-    notes: note,
-    submittedAt: Date.now()
-  };
-
-  queueCheckLocally(record);
-  toast(isUrgent ? "Bar alert sent — texting Admins now" : "Bar status logged", "ok");
-  document.getElementById("bsAlertType").value = "allOk";
-  document.getElementById("bsUrgentHint").style.display = "none";
-  document.getElementById("bsNoteLabel").textContent = "Note (optional)";
-  document.getElementById("bsNote").value = "";
-  trySyncPendingQueue();
-});
-
-/* ---------------- Staff Notes acknowledgment popup ---------------- */
-function maybeShowUnackNotes() {
-  if (!loggedInManager || notesPopupShownThisSession) return;
-  const myKey = loggedInManager.key;
-  const unacked = Object.entries(notesData || {}).filter(([id, n]) => n.requiresAck && !(n.ackBy && n.ackBy[myKey]));
-  notesPopupShownThisSession = true;
-  if (!unacked.length) return;
-  unacked.sort((a, b) => (a[1].postedAt || 0) - (b[1].postedAt || 0));
-  renderNotesAckModal(unacked);
-  document.getElementById("notesAckOverlay").classList.add("show");
-}
-
-function renderNotesAckModal(unacked) {
-  const wrap = document.getElementById("notesAckList");
-  if (!wrap) return;
-  wrap.innerHTML = unacked.map(([id, n]) => `
-    <div class="booth-card" style="margin-bottom:10px;">
-      <div style="white-space:pre-wrap; margin-bottom:8px;">${escapeHtml(n.text || "")}</div>
-      <div class="temp-hint" style="margin-bottom:8px;">${escapeHtml(n.postedBy || "Someone")} · ${n.postedAt ? new Date(n.postedAt).toLocaleString() : ""}</div>
-      <button class="btn btn-primary btn-sm" onclick="ackNote('${id}', this)">Accept</button>
-    </div>`).join("");
-}
-
-function ackNote(noteId, btnEl) {
-  if (!loggedInManager || !notesRef()) return;
-  notesRef().child(noteId).child("ackBy").child(loggedInManager.key).set(Date.now()).then(() => {
-    const card = btnEl.closest(".booth-card");
-    if (card) card.remove();
-    const wrap = document.getElementById("notesAckList");
-    if (wrap && !wrap.children.length) closeModal("notesAckOverlay");
-  });
-}
-
-/* ===================================================================
-   INVENTORY — weekly Par/Beginning/Additions/Ending/Usage tracking,
-   modeled on the Prep Inventory spreadsheet. Beginning Inventory for
-   each week carries forward automatically from the prior week's
-   Ending Inventory; Ending Inventory is the only manual input.
-   =================================================================== */
-function inventoryItemsRef() { return (db && currentFacilityId) ? db.ref("qc/facilities/" + currentFacilityId + "/inventoryItems") : null; }
-function weeklyAttendanceRef() { return (db && currentFacilityId) ? db.ref("qc/facilities/" + currentFacilityId + "/weeklyAttendance") : null; }
-function inventoryCountsRef() { return (db && currentFacilityId) ? db.ref("qc/facilities/" + currentFacilityId + "/inventoryCounts") : null; }
-
-let inventoryItemsData = {};
-let weeklyAttendanceData = {};
-let inventoryCountsData = {};
-let activeInvItemsListener = null, activeInvAttendanceListener = null, activeInvCountsListener = null;
-let invViewMode = "full";
-
-const STARTER_INVENTORY_ITEMS = [
-  {name:"Scotch Eggs", unit:"each", booth:"Argyle - Friday", perAttendee:0.15},
-  {name:"Sliced Ham", unit:"lbs", booth:"Bread and Broth", perAttendee:0.0078125},
-  {name:"Sliced Gouda", unit:"lbs", booth:"Bread and Broth", perAttendee:0.0015625},
-  {name:"Pulled Pork", unit:"lbs", booth:"Divine Schwein", perAttendee:0.0125},
-  {name:"Pork Belly", unit:"lbs", booth:"Divine Schwein", perAttendee:0.015},
-  {name:"Taco Meat", unit:"lbs", booth:"Cantina", perAttendee:0.00765625},
-  {name:"Shredded Lettuce", unit:"lbs", booth:"Cantina", perAttendee:0.004375},
-  {name:"Street Corn", unit:"lbs", booth:"Cantina", perAttendee:0.01125},
-  {name:"Diced Tomatoes", unit:"lbs", booth:"Cantina", perAttendee:0.004375},
-  {name:"Potatoes", unit:"cases", booth:"Get Baked - Friday", perAttendee:0.0010714286},
-  {name:"Beer Cheese Cups", unit:"each", booth:"Knots for You", perAttendee:0.044},
-  {name:"Shredded Lettuce", unit:"lbs", booth:"Madame Cluckies", perAttendee:0.0025781},
-  {name:"Sliced Tomatoes", unit:"lbs", booth:"Madame Cluckies", perAttendee:0.0034375},
-  {name:"BBQ Sauce", unit:"gallons", booth:"Madame Cluckies", perAttendee:0.0004297},
-  {name:"Brownies (reg + Special)", unit:"each", booth:"Queens Delivered Thursday", perAttendee:0.0175},
-  {name:"Chocolate Cupcakes", unit:"each", booth:"Queens Delivered Thursday", perAttendee:0.01875},
-  {name:"Vanilla Cupcakes", unit:"each", booth:"Queens Delivered Thursday", perAttendee:0.0083333},
-  {name:"Meatballs", unit:"lbs", booth:"Cosimo's", perAttendee:0.0071625},
-  {name:"Sausage no P/O", unit:"lbs", booth:"Cosimo's", perAttendee:0.00575},
-  {name:"Prime Cut Beef", unit:"lbs", booth:"Prime Cut", perAttendee:0.019},
-  {name:"Strawberries for Shakeup", unit:"gallons", booth:"Kettle Craic", perAttendee:0.00015625},
-  {name:"Butter", unit:"bags", booth:"Kettle Craic", perAttendee:0.02},
-  {name:"Kettle", unit:"bags", booth:"Kettle Craic", perAttendee:0.035},
-  {name:"Strawberries Pre Cut", unit:"flats", booth:"Majesty Cup - Friday", perAttendee:0.0015},
-  {name:"Special", unit:"lbs", booth:"Macbeth", perAttendee:0.0065625},
-  {name:"Cappucino Muffin", unit:"total", booth:"DK & DKR Split Between", perAttendee:0.0075},
-  {name:"Banana Muffin", unit:"total", booth:"DK & DKR Split Between", perAttendee:0.0075},
-  {name:"Garlic", unit:"buckets", booth:"Blackbeards Pickles - Wednesday", perAttendee:0.0003636},
-  {name:"Garlic", unit:"buckets", booth:"Wicked Pickle - Wednesday", perAttendee:0.0007273},
-  {name:"Kits", unit:"each", booth:"Smores Kits - Friday", perAttendee:0.03},
-  {name:"Beef", unit:"lbs", booth:"McManley Tiger Pies", perAttendee:0.0075},
-  {name:"Mushroom", unit:"lbs", booth:"McManley Tiger Pies", perAttendee:0.005},
-  {name:"Beef Mushroom Mix", unit:"lbs", booth:"McManley Tiger Pies", perAttendee:0.005},
-  {name:"Pie Shells Baked Off", unit:"cases", booth:"McManley Tiger Pies", perAttendee:0.0006944},
-  {name:"Peas", unit:"lbs", booth:"McManley Tiger Pies", perAttendee:0.00875}
-];
-const STARTER_WEEKLY_ATTENDANCE = [
-  {order:1, label:"August 15th - 16th", expected:16000},
-  {order:2, label:"August 22nd - 23rd", expected:16000},
-  {order:3, label:"August 29th - 30th", expected:16000},
-  {order:4, label:"September 5th - 6th", expected:16000},
-  {order:5, label:"September 12th - 13th", expected:16000},
-  {order:6, label:"September 19th - 20th", expected:16000},
-  {order:7, label:"September 26th - 27th", expected:16000},
-  {order:8, label:"October 3rd - 4th", expected:16000},
-  {order:9, label:"October 10th - 11th", expected:16000},
-  {order:10, label:"October 17th - 18th", expected:16000},
-  {order:11, label:"October 24th - 25th", expected:16000}
-];
-
-function importStarterInventoryData() {
-  if (!inventoryItemsRef() || !weeklyAttendanceRef()) { toast("Not connected yet — try again in a moment", "err"); return; }
-  if (!confirm("Import the 2026 starter Prep Inventory data (35 items, 11 weekends) into this facility? Safe to run even if some already exist — it won't duplicate matching entries.")) return;
-
-  const itemUpdates = {};
-  STARTER_INVENTORY_ITEMS.forEach((it, i) => { itemUpdates["starter_" + i] = it; });
-  const weekUpdates = {};
-  STARTER_WEEKLY_ATTENDANCE.forEach((w, i) => { weekUpdates["wk" + w.order] = w; });
-
-  Promise.all([
-    inventoryItemsRef().update(itemUpdates),
-    weeklyAttendanceRef().update(weekUpdates)
-  ]).then(() => {
-    toast("Starter inventory data imported", "ok");
-  });
-}
-
-/* ---------------- Inventory workbook export/import (xlsx, via SheetJS) ----------------
-   Lets an Admin download the full item list + weekly grid as a real .xlsx,
-   edit it in Excel, and upload it back. Upload only adds/updates rows present
-   in the file — it never deletes an item, week, or count that the file
-   doesn't mention, so a partial edit can't wipe out unrelated data. */
-function populateInvBoothList() {
-  const dl = document.getElementById("invBoothList");
-  if (!dl) return;
-  const booths = Array.from(new Set(Object.values(inventoryItemsData || {}).map(it => it.booth).filter(Boolean))).sort();
-  dl.innerHTML = booths.map(b => `<option value="${escapeHtml(b)}"></option>`).join("");
-}
-
-function addInventoryItem() {
-  if (!inventoryItemsRef()) { toast("Not connected yet — try again in a moment", "err"); return; }
-  const booth = document.getElementById("invNewBooth").value.trim();
-  const name = document.getElementById("invNewItemName").value.trim();
-  const unit = document.getElementById("invNewItemUnit").value.trim();
-  const rate = parseFloat(document.getElementById("invNewItemRate").value);
-
-  if (!booth) { toast("Enter a booth name", "err"); return; }
-  if (!name) { toast("Enter an item name", "err"); return; }
-  if (!unit) { toast("Enter a unit (e.g. lbs, each)", "err"); return; }
-  if (isNaN(rate) || rate < 0) { toast("Enter a per-attendee rate (0 or higher)", "err"); return; }
-
-  inventoryItemsRef().push().set({ name, unit, booth, perAttendee: rate }).then(() => {
-    toast(`${name} added to ${booth}`, "ok");
-    document.getElementById("invNewBooth").value = booth; // keep booth for adding more items to it
-    document.getElementById("invNewItemName").value = "";
-    document.getElementById("invNewItemUnit").value = "";
-    document.getElementById("invNewItemRate").value = "";
-  });
-}
-
-function computeInvWeekValues(order, itemId, item, runningBeginning) {
-  const week = Object.values(weeklyAttendanceData).find(w => w.order === order);
-  const expected = week ? (week.expected || 0) : 0;
-  const par = (item.perAttendee || 0) * expected;
-  const weekId = Object.keys(weeklyAttendanceData).find(k => weeklyAttendanceData[k].order === order);
-  const counts = (weekId && inventoryCountsData[weekId] && inventoryCountsData[weekId][itemId]) || {};
-  const beginning = order === 1
-    ? (counts.beginning !== null && counts.beginning !== undefined ? counts.beginning : (runningBeginning !== undefined ? runningBeginning : 0))
-    : runningBeginning;
-  const additions = Math.max(0, par - beginning);
-  const ending = counts.ending !== null && counts.ending !== undefined ? counts.ending : 0;
-  const usage = Math.max(0, beginning + additions - ending);
-  return { weekId, week, par, beginning, additions, ending, usage };
-}
-
-function exportInventoryWorkbook() {
-  if (typeof XLSX === "undefined") { toast("Workbook library didn't load — check your connection and try again", "err"); return; }
-
-  const instructionsSheet = XLSX.utils.aoa_to_sheet([
-    ["Faire Food QC — Prep Inventory Workbook"],
-    [""],
-    ["Items tab: add new rows for new items (leave Item ID blank). Don't change the Item ID of an existing row."],
-    ["Weekly Attendance tab: add new rows for new weekends (leave Week ID blank). Edit Expected Attendance freely."],
-    ["Weekly Grid tab: Par, Additions, and Usage are calculated by the app — edits to those columns are ignored on upload."],
-    ["Only Beginning (week 1 only — later weeks carry forward automatically) and Ending are used when you upload."],
-    ["Uploading never deletes anything — rows you don't touch are left as-is."]
-  ]);
-
-  const itemRows = [["Item ID", "Booth", "Item", "Unit", "Per Attendee Rate"]];
-  Object.entries(inventoryItemsData || {}).forEach(([id, it]) => {
-    itemRows.push([id, it.booth || "", it.name || "", it.unit || "", it.perAttendee || 0]);
-  });
-  const itemsSheet = XLSX.utils.aoa_to_sheet(itemRows);
-
-  const weekRows = [["Week ID", "Order", "Label", "Expected Attendance"]];
-  Object.entries(weeklyAttendanceData || {}).sort((a, b) => (a[1].order || 0) - (b[1].order || 0)).forEach(([id, w]) => {
-    weekRows.push([id, w.order || "", w.label || "", w.expected || 0]);
-  });
-  const weeksSheet = XLSX.utils.aoa_to_sheet(weekRows);
-
-  const gridRows = [["Week ID", "Week Label", "Item ID", "Booth", "Item", "Unit", "Par", "Beginning", "Additions", "Ending", "Usage"]];
-  const orders = Object.values(weeklyAttendanceData || {}).map(w => w.order).sort((a, b) => a - b);
-  const runningBeginnings = {};
-  orders.forEach(order => {
-    Object.entries(inventoryItemsData || {}).sort((a, b) => (a[1].booth || "").localeCompare(b[1].booth || "") || (a[1].name || "").localeCompare(b[1].name || "")).forEach(([itemId, item]) => {
-      const rb = order === 1 ? undefined : runningBeginnings[itemId];
-      const v = computeInvWeekValues(order, itemId, item, rb);
-      runningBeginnings[itemId] = v.ending;
-      if (v.week) {
-        gridRows.push([v.weekId, v.week.label || "", itemId, item.booth || "", item.name || "", item.unit || "", v.par.toFixed(2), v.beginning.toFixed(2), v.additions.toFixed(2), v.ending.toFixed(2), v.usage.toFixed(2)]);
-      }
-    });
-  });
-  const gridSheet = XLSX.utils.aoa_to_sheet(gridRows);
-
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, instructionsSheet, "Instructions");
-  XLSX.utils.book_append_sheet(wb, itemsSheet, "Items");
-  XLSX.utils.book_append_sheet(wb, weeksSheet, "Weekly Attendance");
-  XLSX.utils.book_append_sheet(wb, gridSheet, "Weekly Grid");
-
-  const facName = (facilityMetaData[currentFacilityId] && facilityMetaData[currentFacilityId].name) || currentFacilityId || "facility";
-  XLSX.writeFile(wb, `Prep_Inventory_${facName}_${new Date().toISOString().slice(0,10)}.xlsx`);
-}
-
-document.getElementById("invUploadFile").addEventListener("change", (e) => {
-  const file = e.target.files[0];
-  if (!file) return;
-  if (typeof XLSX === "undefined") { toast("Workbook library didn't load — check your connection and try again", "err"); return; }
-
-  const reader = new FileReader();
-  reader.onload = (ev) => {
-    let wb;
-    try {
-      wb = XLSX.read(new Uint8Array(ev.target.result), { type: "array" });
-    } catch (err) {
-      toast("Couldn't read that file — is it a .xlsx exported from this app?", "err");
-      return;
-    }
-
-    const itemsWs = wb.Sheets["Items"];
-    const weeksWs = wb.Sheets["Weekly Attendance"];
-    const gridWs = wb.Sheets["Weekly Grid"];
-    if (!itemsWs || !weeksWs || !gridWs) {
-      toast("Missing Items, Weekly Attendance, or Weekly Grid tab — use a workbook downloaded from this app", "err");
-      return;
-    }
-
-    const itemRows = XLSX.utils.sheet_to_json(itemsWs, { header: 1 }).slice(1).filter(r => r.length && r[2]);
-    const weekRows = XLSX.utils.sheet_to_json(weeksWs, { header: 1 }).slice(1).filter(r => r.length && r[2]);
-    const gridRows = XLSX.utils.sheet_to_json(gridWs, { header: 1 }).slice(1).filter(r => r.length && r[2]);
-
-    // Build item lookups (existing + newly-named rows in this file)
-    const itemByKey = {}; // "booth||name||unit" -> id
-    Object.entries(inventoryItemsData || {}).forEach(([id, it]) => {
-      itemByKey[(it.booth || "") + "||" + (it.name || "") + "||" + (it.unit || "")] = id;
-    });
-    const itemUpdates = {};
-    itemRows.forEach(r => {
-      const [id, booth, name, unit, rate] = r;
-      const key = (booth || "") + "||" + (name || "") + "||" + (unit || "");
-      let finalId = (id && String(id).trim()) ? String(id).trim() : itemByKey[key];
-      if (!finalId) finalId = "item_" + Date.now() + "_" + Math.random().toString(36).slice(2, 8);
-      itemByKey[key] = finalId;
-      itemUpdates[finalId] = { name: name || "", unit: unit || "", booth: booth || "", perAttendee: parseFloat(rate) || 0 };
-    });
-
-    const weekByLabel = {};
-    Object.entries(weeklyAttendanceData || {}).forEach(([id, w]) => { weekByLabel[w.label || ""] = id; });
-    const weekUpdates = {};
-    weekRows.forEach(r => {
-      const [id, order, label, expected] = r;
-      let finalId = (id && String(id).trim()) ? String(id).trim() : weekByLabel[label || ""];
-      if (!finalId) finalId = "wk_" + Date.now() + "_" + Math.random().toString(36).slice(2, 8);
-      weekByLabel[label || ""] = finalId;
-      weekUpdates[finalId] = { order: parseFloat(order) || 0, label: label || "", expected: parseFloat(expected) || 0 };
-    });
-
-    const countUpdates = {}; // weekId -> itemId -> {beginning, ending}
-    gridRows.forEach(r => {
-      const [weekId, weekLabel, itemId, booth, name, unit] = r;
-      const beginning = r[7], ending = r[9];
-      let finalWeekId = (weekId && String(weekId).trim()) ? String(weekId).trim() : weekByLabel[weekLabel || ""];
-      const key = (booth || "") + "||" + (name || "") + "||" + (unit || "");
-      let finalItemId = (itemId && String(itemId).trim()) ? String(itemId).trim() : itemByKey[key];
-      if (!finalWeekId || !finalItemId) return;
-      if (!countUpdates[finalWeekId]) countUpdates[finalWeekId] = {};
-      const entry = {};
-      if (beginning !== undefined && beginning !== "") entry.beginning = parseFloat(beginning);
-      if (ending !== undefined && ending !== "") entry.ending = parseFloat(ending);
-      if (Object.keys(entry).length) countUpdates[finalWeekId][finalItemId] = entry;
-    });
-
-    const itemCount = Object.keys(itemUpdates).length;
-    const weekCount = Object.keys(weekUpdates).length;
-    const countCount = Object.values(countUpdates).reduce((sum, obj) => sum + Object.keys(obj).length, 0);
-
-    if (!confirm(`Import ${itemCount} item row(s), ${weekCount} week row(s), and ${countCount} inventory count update(s)? Nothing outside this file will be changed or deleted.`)) {
-      document.getElementById("invUploadFile").value = "";
-      return;
-    }
-
-    const writes = [];
-    if (itemCount && inventoryItemsRef()) writes.push(inventoryItemsRef().update(itemUpdates));
-    if (weekCount && weeklyAttendanceRef()) writes.push(weeklyAttendanceRef().update(weekUpdates));
-    Object.entries(countUpdates).forEach(([weekId, items]) => {
-      if (inventoryCountsRef()) writes.push(inventoryCountsRef().child(weekId).update(items));
-    });
-
-    Promise.all(writes).then(() => {
-      toast(`Imported ${itemCount} items, ${weekCount} weeks, ${countCount} counts`, "ok");
-      document.getElementById("invUploadFile").value = "";
-    }).catch(err => {
-      console.error(err);
-      toast("Import failed partway through — check the console and try again", "err");
-    });
-  };
-  reader.readAsArrayBuffer(file);
-});
-
-function populateInvWeekSelect() {
-  const sel = document.getElementById("invWeekSelect");
-  if (!sel) return;
-  const current = sel.value;
-  const weeks = Object.entries(weeklyAttendanceData || {}).sort((a, b) => (a[1].order || 0) - (b[1].order || 0));
-  if (!weeks.length) {
-    sel.innerHTML = `<option value="">No weeks set up yet</option>`;
-    return;
-  }
-  sel.innerHTML = weeks.map(([id, w]) => `<option value="${id}">${escapeHtml(w.label || id)}</option>`).join("");
-  if (weeks.some(([id]) => id === current)) sel.value = current;
-  renderInventoryTable();
-}
-
-function currentInvWeekOrder() {
-  const sel = document.getElementById("invWeekSelect");
-  const w = weeklyAttendanceData[sel.value];
-  return w ? w.order : null;
-}
-
-function priorInvWeekId(order) {
-  if (!order) return null;
-  const match = Object.entries(weeklyAttendanceData || {}).find(([id, w]) => w.order === order - 1);
-  return match ? match[0] : null;
-}
-
-document.getElementById("invWeekSelect").addEventListener("change", () => {
-  const w = weeklyAttendanceData[document.getElementById("invWeekSelect").value];
-  document.getElementById("invAttendanceInput").value = w ? (w.expected || "") : "";
-  renderInventoryTable();
-});
-
-document.getElementById("invAttendanceInput").addEventListener("change", () => {
-  const weekId = document.getElementById("invWeekSelect").value;
-  const val = parseFloat(document.getElementById("invAttendanceInput").value);
-  if (!weekId || !weeklyAttendanceRef() || isNaN(val)) return;
-  weeklyAttendanceRef().child(weekId).update({ expected: val }).then(() => renderInventoryTable());
-});
-
-function toggleInvViewMode() {
-  invViewMode = invViewMode === "full" ? "prep" : "full";
-  document.getElementById("invViewToggleBtn").textContent = invViewMode === "full" ? "Prep List View" : "Full View";
-  renderInventoryTable();
-}
-
-function saveInvEnding(weekId, itemId, value) {
-  if (!inventoryCountsRef()) return;
-  const val = value === "" ? null : parseFloat(value);
-  inventoryCountsRef().child(weekId).child(itemId).update({
-    ending: val,
-    enteredBy: loggedInManager ? loggedInManager.name : "",
-    enteredAt: Date.now()
-  });
-}
-
-function saveInvBeginning(weekId, itemId, value) {
-  if (!inventoryCountsRef()) return;
-  const val = value === "" ? null : parseFloat(value);
-  inventoryCountsRef().child(weekId).child(itemId).update({ beginning: val });
-}
-
-function renderInventoryTable() {
-  const wrap = document.getElementById("invTableWrap");
-  const weekSel = document.getElementById("invWeekSelect");
-  if (!wrap || !weekSel) return;
-  const weekId = weekSel.value;
-  const week = weeklyAttendanceData[weekId];
-  const isAdmin = loggedInManager && (loggedInManager.role === "admin" || loggedInManager.role === "superadmin");
-  document.getElementById("invAttendanceField").style.display = isAdmin ? "block" : "none";
-  document.getElementById("invAddItemBox").style.display = isAdmin ? "flex" : "none";
-  document.getElementById("invImportBtn").style.display = isAdmin ? "inline-flex" : "none";
-  document.getElementById("invDownloadBtn").style.display = isAdmin ? "inline-flex" : "none";
-  document.getElementById("invUploadBtn").style.display = isAdmin ? "inline-flex" : "none";
-  if (isAdmin) populateInvBoothList();
-
-  if (!week) {
-    wrap.innerHTML = `<div class="empty">Select or import weeks to get started.</div>`;
-    return;
-  }
-
-  const expected = week.expected || 0;
-  const priorId = priorInvWeekId(week.order);
-  const priorCounts = priorId ? (inventoryCountsData[priorId] || {}) : {};
-  const thisCounts = inventoryCountsData[weekId] || {};
-
-  const byBooth = {};
-  Object.entries(inventoryItemsData || {}).forEach(([id, it]) => {
-    if (!byBooth[it.booth]) byBooth[it.booth] = [];
-    byBooth[it.booth].push({ id, ...it });
-  });
-
-  const boothNames = Object.keys(byBooth).sort();
-  if (!boothNames.length) {
-    wrap.innerHTML = `<div class="empty">No inventory items yet${isAdmin ? " — use Import Starter Data above." : "."}</div>`;
-    return;
-  }
-
-  let html = "";
-  boothNames.forEach(booth => {
-    html += `<div class="booth-card" style="margin-bottom:14px;"><h3 style="margin:0 0 10px;">${escapeHtml(booth)}</h3>`;
-    html += `<table class="log" style="width:100%;"><thead><tr>
-      <th>Item</th><th>Unit</th>
-      ${invViewMode === "full" ? "<th>Par</th><th>Beginning</th>" : ""}
-      <th>Additions${invViewMode === "prep" ? " (Prep This)" : ""}</th>
-      ${invViewMode === "full" ? "<th>Ending</th><th>Usage</th>" : ""}
-    </tr></thead><tbody>`;
-
-    byBooth[booth].forEach(it => {
-      const par = (it.perAttendee || 0) * expected;
-      const priorEnding = priorCounts[it.id] ? priorCounts[it.id].ending : null;
-      const beginning = priorId
-        ? (priorEnding !== null && priorEnding !== undefined ? priorEnding : 0)
-        : (thisCounts[it.id] && thisCounts[it.id].beginning !== null && thisCounts[it.id].beginning !== undefined ? thisCounts[it.id].beginning : null);
-      const beginningVal = beginning === null || beginning === undefined ? 0 : beginning;
-      const additions = Math.max(0, par - beginningVal);
-      const ending = thisCounts[it.id] ? thisCounts[it.id].ending : null;
-      const endingVal = ending === null || ending === undefined ? 0 : ending;
-      const usage = Math.max(0, beginningVal + additions - endingVal);
-
-      html += `<tr>
-        <td>${escapeHtml(it.name)}</td>
-        <td>${escapeHtml(it.unit)}</td>
-        ${invViewMode === "full" ? `
-          <td class="mono">${par.toFixed(2)}</td>
-          <td class="mono">${priorId
-            ? beginningVal.toFixed(2)
-            : `<input type="number" step="0.01" value="${beginning === null ? "": beginning}" style="width:80px;" onchange="saveInvBeginning('${weekId}','${it.id}', this.value); renderInventoryTable();">`}
-          </td>` : ""}
-        <td class="mono">${additions.toFixed(2)}</td>
-        ${invViewMode === "full" ? `
-          <td class="mono"><input type="number" step="0.01" value="${ending === null ? "" : ending}" style="width:80px;" onchange="saveInvEnding('${weekId}','${it.id}', this.value); renderInventoryTable();"></td>
-          <td class="mono">${usage.toFixed(2)}</td>` : ""}
-      </tr>`;
-    });
-
-    html += `</tbody></table></div>`;
-  });
-
-  wrap.innerHTML = html;
-}
-
-function attachInventoryItemsListenerIfNeeded() {
-  if (activeInvItemsListener) return;
-  const ir = inventoryItemsRef();
-  if (!ir) return;
-  ir.on("value", (snap) => {
-    inventoryItemsData = snap.val() || {};
-    populateDeliveryBoothSelect();
-  populateBarBoothSelect();
-    renderInventoryTable();
-  });
-  activeInvItemsListener = ir;
-}
-
-function attachInventoryListenersIfNeeded() {
-  attachInventoryItemsListenerIfNeeded();
-  if (activeInvAttendanceListener) { renderInventoryTable(); return; }
-  const ar = weeklyAttendanceRef();
-  const cr = inventoryCountsRef();
-  if (!ar || !cr) return;
-  ar.on("value", (snap) => { weeklyAttendanceData = snap.val() || {}; populateInvWeekSelect(); });
-  cr.on("value", (snap) => { inventoryCountsData = snap.val() || {}; renderInventoryTable(); });
-  activeInvAttendanceListener = ar;
-  activeInvCountsListener = cr;
-}
-
-function detachInventoryListeners() {
-  if (activeInvItemsListener) activeInvItemsListener.off();
-  if (activeInvAttendanceListener) activeInvAttendanceListener.off();
-  if (activeInvCountsListener) activeInvCountsListener.off();
-  activeInvItemsListener = null;
-  activeInvAttendanceListener = null;
-  activeInvCountsListener = null;
-  inventoryItemsData = {};
-  weeklyAttendanceData = {};
-  inventoryCountsData = {};
-}
 
 function sendEmailNotification(record, checkId) {
   if (!window.emailjs || EMAILJS_SERVICE_ID.startsWith("YOUR-")) {
@@ -4818,12 +3313,10 @@ function managerFields(entry) {
       pin: entry.pin || "",
       role: entry.role || "manager",
       phone: entry.phone || "",
-      email: entry.email || "",
-      canDeliver: entry.canDeliver === true,
-      canInventory: entry.canInventory === true
+      email: entry.email || ""
     };
   }
-  return { name: entry || "", pin: "", role: "manager", phone: "", email: "", canDeliver: false, canInventory: false };
+  return { name: entry || "", pin: "", role: "manager", phone: "", email: "" };
 }
 
 function saveManagerRecord(key, overrides) {
@@ -4843,28 +3336,22 @@ function addNewZoneManager() {
   const phoneInput = document.getElementById("newZmPhone");
   const pinInput = document.getElementById("newZmPin");
   const roleInput = document.getElementById("newZmRole");
-  const canDeliverInput = document.getElementById("newZmCanDeliver");
-  const canInventoryInput = document.getElementById("newZmCanInventory");
   const name = nameInput.value.trim();
   const email = emailInput.value.trim();
   const phone = phoneInput.value.trim();
   const pin = pinInput.value.trim();
   const role = roleInput.value;
-  const canDeliver = canDeliverInput.checked;
-  const canInventory = canInventoryInput.checked;
   if (!name) { toast("Enter a name first", "err"); return; }
   if (!pin || pin.length < 4) { toast("Enter a PIN of at least 4 digits", "err"); return; }
   if (!zmRef()) { toast("Firebase not configured yet", "err"); return; }
   hashPin(pin).then(pinHash => {
-    zmRef().child(safeZmKey(name)).set({ name, pin: pinHash, role, phone, email, canDeliver, canInventory });
+    zmRef().child(safeZmKey(name)).set({ name, pin: pinHash, role, phone, email });
     nameInput.value = "";
     emailInput.value = "";
     phoneInput.value = "";
     pinInput.value = "";
     roleInput.value = "manager";
-    canDeliverInput.checked = false;
-    canInventoryInput.checked = false;
-    toast("Manager added", "ok");
+    toast("Zone Manager added", "ok");
   });
 }
 
@@ -4873,28 +3360,24 @@ function renderManagerPinTable() {
   if (!body) return;
   const keys = Object.keys(zoneManagersData);
   if (!keys.length) {
-    body.innerHTML = `<tr><td colspan="6" style="text-align:center; color:var(--slate);">No managers added yet.</td></tr>`;
+    body.innerHTML = `<tr><td colspan="6" style="text-align:center; color:var(--slate);">No zone managers added yet.</td></tr>`;
     return;
   }
   body.innerHTML = keys.map(key => {
     const f = managerFields(zoneManagersData[key]);
     const roleLabel = f.role === "admin" ? `<span class="tag" style="background:var(--copper); color:#fff;">Admin</span>` : `<span class="tag">Zone Manager</span>`;
-    const deliveryLabel = f.canDeliver ? ` <span class="tag" style="background:var(--slate); color:#fff;">Delivery</span>` : "";
-    const inventoryLabel = f.canInventory ? ` <span class="tag" style="background:var(--slate); color:#fff;">Inventory</span>` : "";
     return `
       <tr>
         <td>${escapeHtml(f.name)}</td>
         <td class="mono">${escapeHtml(f.email || "—not set—")}</td>
         <td class="mono">${escapeHtml(f.phone || "—not set—")}</td>
         <td class="mono">${f.pin ? "•••• (set)" : "—not set—"}</td>
-        <td>${roleLabel}${deliveryLabel}${inventoryLabel}</td>
+        <td>${roleLabel}</td>
         <td style="display:flex; gap:6px; flex-wrap:wrap;">
           <button class="btn btn-ghost btn-sm" onclick="editManagerEmail('${key}')">Edit Email</button>
           <button class="btn btn-ghost btn-sm" onclick="editManagerPhone('${key}')">Edit Phone</button>
           <button class="btn btn-ghost btn-sm" onclick="resetManagerPin('${key}')">Change PIN</button>
           <button class="btn btn-ghost btn-sm" onclick="toggleManagerRole('${key}')">${f.role === "admin" ? "Make Manager" : "Make Admin"}</button>
-          <button class="btn btn-ghost btn-sm" onclick="toggleManagerDelivery('${key}')">${f.canDeliver ? "Remove Delivery" : "Add Delivery"}</button>
-          <button class="btn btn-ghost btn-sm" onclick="toggleManagerInventory('${key}')">${f.canInventory ? "Remove Inventory" : "Add Inventory"}</button>
           <button class="btn btn-danger btn-sm" onclick="deleteManager('${key}', '${escapeHtml(f.name).replace(/'/g, "\\'")}')">Delete</button>
         </td>
       </tr>`;
@@ -4953,20 +3436,6 @@ function toggleManagerRole(key) {
   const newRole = f.role === "admin" ? "manager" : "admin";
   saveManagerRecord(key, { role: newRole });
   toast(`${f.name} is now ${newRole === "admin" ? "an Admin" : "a Zone Manager"}`, "ok");
-}
-
-function toggleManagerDelivery(key) {
-  const f = managerFields(zoneManagersData[key]);
-  const newVal = !f.canDeliver;
-  saveManagerRecord(key, { canDeliver: newVal });
-  toast(`${f.name} ${newVal ? "can now log deliveries" : "no longer logs deliveries"}`, "ok");
-}
-
-function toggleManagerInventory(key) {
-  const f = managerFields(zoneManagersData[key]);
-  const newVal = !f.canInventory;
-  saveManagerRecord(key, { canInventory: newVal });
-  toast(`${f.name} ${newVal ? "can now log inventory counts" : "no longer logs inventory counts"}`, "ok");
 }
 
 function resetManagerPin(key) {
@@ -5040,8 +3509,6 @@ document.getElementById("facilitySwitcherSelect").addEventListener("change", (e)
   showBoothList();
   attachFacilityListeners();
   populateBoothSelect();
-  populateDeliveryBoothSelect();
-  populateBarBoothSelect();
   toast(`Switched to ${(facilityMetaData[currentFacilityId] && facilityMetaData[currentFacilityId].name) || currentFacilityId}`, "ok");
 });
 
@@ -5185,8 +3652,6 @@ function switchToFacilityFromTab(id) {
   showBoothList();
   attachFacilityListeners();
   populateBoothSelect();
-  populateDeliveryBoothSelect();
-  populateBarBoothSelect();
   document.querySelector('nav.tabs button[data-tab="checkView"]').click();
   toast(`Switched to ${(facilityMetaData[id] && facilityMetaData[id].name) || id}`, "ok");
 }
@@ -5334,10 +3799,12 @@ function attachDashboardListeners() {
       renderDashboard();
     });
 
-    // Only pulling enough recent checks to compute today's pass/fail counts
-    // and detect overdue booths — doesn't need the full history like the
-    // Check Log tab does, so this stays much smaller.
-    const cr = db.ref("qc/facilities/" + fid + "/checks").limitToLast(100);
+    // Only pulling recent checks to compute today's pass/fail counts and
+    // detect overdue booths — queried by date range (not a raw count cap)
+    // so a busy day's checks can never silently get cut off partway
+    // through, the same bug that hit the Check Log tab.
+    const dashCutoff = Date.now() - CHECKS_HISTORY_WINDOW_DAYS * 24 * 60 * 60 * 1000;
+    const cr = db.ref("qc/facilities/" + fid + "/checks").orderByChild("submittedAt").startAt(dashCutoff);
     cr.on("value", (snap) => {
       dashboardData[fid].checks = snap.val() || {};
       renderDashboard();
@@ -5502,9 +3969,7 @@ function postStaffNote() {
     text,
     postedBy: loggedInManager.name,
     postedByRole: loggedInManager.role,
-    postedAt: Date.now(),
-    requiresAck: true,
-    ackBy: {}
+    postedAt: Date.now()
   }).then(() => {
     textEl.value = "";
     toast("Note posted", "ok");
@@ -5542,28 +4007,7 @@ function escapeHtml(str) {
 /* ---------------- PWA service worker registration ---------------- */
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("sw.js").then(reg => {
-      // If a new service worker takes over while the app is already open
-      // (rare, but possible if it's left open across a deploy), nudge the
-      // person to refresh instead of leaving them silently on stale code.
-      let hasShownUpdatePrompt = false;
-      reg.addEventListener("updatefound", () => {
-        const newWorker = reg.installing;
-        if (!newWorker) return;
-        newWorker.addEventListener("statechange", () => {
-          if (newWorker.state === "installed" && navigator.serviceWorker.controller && !hasShownUpdatePrompt) {
-            hasShownUpdatePrompt = true;
-            if (confirm("A new version of this app is available. Refresh now?")) {
-              window.location.reload();
-            }
-          }
-        });
-      });
-      // Check for an update every time the app comes back to the foreground.
-      document.addEventListener("visibilitychange", () => {
-        if (document.visibilityState === "visible") reg.update();
-      });
-    }).catch(err => console.warn("SW registration failed", err));
+    navigator.serviceWorker.register("sw.js").catch(err => console.warn("SW registration failed", err));
   });
 }
 </script>
