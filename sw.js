@@ -1,4 +1,4 @@
-const CACHE_NAME = "faire-food-qc-shell-v3";
+const CACHE_NAME = "faire-food-qc-shell-v4";
 const SHELL_FILES = [
   "./index.html",
   "./manifest.json",
