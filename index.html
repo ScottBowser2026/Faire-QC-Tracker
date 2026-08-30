@@ -1349,7 +1349,7 @@
    ===================================================================== */
 // Bump this string with every deploy — shown in the header so it's obvious
 // (even in an incognito window with zero cache) exactly what version is live.
-const APP_VERSION = "v38";
+const APP_VERSION = "v39";
 document.getElementById("appVersionBadge").textContent = APP_VERSION;
 
 const firebaseConfig = {
@@ -2486,13 +2486,12 @@ function renderDailyReport() {
     <div class="temp-hint" style="margin-bottom:10px;">${escapeHtml(scheduleNote)}</div>
     <table class="log">
       <thead><tr>
-        <th>Booth</th><th>Zone Manager(s)</th><th>Checks</th><th>Pass</th><th>Fail</th><th>First</th><th>Last</th><th>Rate (per hr)</th><th>vs Target</th>
+        <th>Booth</th><th>Checks</th><th>Pass</th><th>Fail</th><th>First</th><th>Last</th><th>Rate (per hr)</th><th>vs Target</th>
       </tr></thead>
       <tbody>
         ${rows.map(r => `
           <tr>
             <td data-label="Booth">${escapeHtml(r.boothName)}</td>
-            <td data-label="Zone Manager(s)">${escapeHtml(r.managers)}</td>
             <td data-label="Checks" class="mono">${r.count}</td>
             <td data-label="Pass" class="mono">${r.passCount}</td>
             <td data-label="Fail" class="mono">${r.failCount}</td>
@@ -2660,11 +2659,10 @@ function printFullReport() {
     <div class="print-section">
       <h2>Daily Report — By Booth</h2>
       <table>
-        <thead><tr><th>Booth</th><th>Zone Manager(s)</th><th>Checks</th><th>Pass</th><th>Fail</th><th>First</th><th>Last</th><th>Rate/hr</th><th>vs Target</th></tr></thead>
+        <thead><tr><th>Booth</th><th>Checks</th><th>Pass</th><th>Fail</th><th>First</th><th>Last</th><th>Rate/hr</th><th>vs Target</th></tr></thead>
         <tbody>
           ${rows.map(r => `<tr>
             <td>${escapeHtml(r.boothName)}</td>
-            <td>${escapeHtml(r.managers)}</td>
             <td>${r.count}</td><td>${r.passCount}</td><td>${r.failCount}</td>
             <td>${escapeHtml(r.firstTime)}</td><td>${escapeHtml(r.lastTime)}</td>
             <td>${r.actualRate ? r.actualRate.toFixed(2) : "—"}</td>
@@ -2811,9 +2809,9 @@ function renderSiteAssessment(data) {
 
 function downloadDailyReport() {
   const data = computeDailyReportData();
-  const headers = ["Booth", "Zone Manager(s)", "Checks", "Pass", "Fail", "First Check", "Last Check", "Rate (checks/hr)", "% of Target"];
+  const headers = ["Booth", "Checks", "Pass", "Fail", "First Check", "Last Check", "Rate (checks/hr)", "% of Target"];
   const rows = [headers, ...data.rows.map(r => [
-    r.boothName, r.managers, r.count, r.passCount, r.failCount, r.firstTime, r.lastTime,
+    r.boothName, r.count, r.passCount, r.failCount, r.firstTime, r.lastTime,
     r.actualRate ? r.actualRate.toFixed(2) : "", r.compliance === null ? "" : r.compliance + "%"
   ])];
   downloadCsv(rows, "daily-report");
@@ -3038,17 +3036,22 @@ function jumpToArchivedDay(dateStr) {
 
 function checkForArchive() {
   const note = document.getElementById("archiveStatusNote");
-  note.textContent = "";
-  if (!db || !currentFacilityId) return;
+  note.textContent = "Checking for an archived summary…";
+  if (!db || !currentFacilityId) { note.textContent = ""; return; }
   const dateObj = getReportDate();
-  db.ref("qc/facilities/" + currentFacilityId + "/dailyArchives/" + dateKey(dateObj)).once("value").then(snap => {
+  const dk = dateKey(dateObj);
+  db.ref("qc/facilities/" + currentFacilityId + "/dailyArchives/" + dk).once("value").then(snap => {
     const archive = snap.val();
-    if (archive) {
-      note.textContent = `This day has an archived summary from ${new Date(archive.archivedAt).toLocaleString()}. ${checksData && Object.values(checksData).some(c => c && isSameLocalCalendarDay(checkDateForFiltering(c), dateObj)) ? "Showing live data below (still available)." : "Live check detail is no longer loaded/available — showing the archived summary instead."}`;
-      // If there's no live data for this date, fall back to rendering the archive directly.
-      const hasLiveData = checksData && Object.values(checksData).some(c => c && isSameLocalCalendarDay(checkDateForFiltering(c), dateObj));
-      if (!hasLiveData) renderArchivedSummary(archive, dateObj);
+    if (!archive) {
+      note.textContent = "";
+      return;
     }
+    const hasLiveData = checksData && Object.values(checksData).some(c => c && isSameLocalCalendarDay(checkDateForFiltering(c), dateObj));
+    note.textContent = `This day has an archived summary from ${new Date(archive.archivedAt).toLocaleString()}. ${hasLiveData ? "Showing live data below (still available)." : "Live check detail is no longer loaded/available — showing the archived summary instead."}`;
+    if (!hasLiveData) renderArchivedSummary(archive, dateObj);
+  }).catch(err => {
+    console.error("checkForArchive failed for", dk, err);
+    note.textContent = "Couldn't check for an archived summary — " + (err && err.message ? err.message : "check your connection and try again");
   });
 }
 
@@ -3059,13 +3062,12 @@ function renderArchivedSummary(archive, dateObj) {
   dailyWrap.innerHTML = `
     <table class="log">
       <thead><tr>
-        <th>Booth</th><th>Zone Manager(s)</th><th>Checks</th><th>Pass</th><th>Fail</th><th>First</th><th>Last</th><th>Rate (per hr)</th><th>vs Target</th>
+        <th>Booth</th><th>Checks</th><th>Pass</th><th>Fail</th><th>First</th><th>Last</th><th>Rate (per hr)</th><th>vs Target</th>
       </tr></thead>
       <tbody>
         ${archive.booths.map(r => `
           <tr>
             <td data-label="Booth">${escapeHtml(r.boothName)}</td>
-            <td data-label="Zone Manager(s)">${escapeHtml(r.managers)}</td>
             <td data-label="Checks" class="mono">${r.count}</td>
             <td data-label="Pass" class="mono">${r.passCount}</td>
             <td data-label="Fail" class="mono">${r.failCount}</td>
