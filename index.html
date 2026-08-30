@@ -963,8 +963,11 @@
     <div id="boothListPane">
       <div class="section-head">
         <h2>Booths</h2>
-        <div style="display:flex; gap:8px;">
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
           <button class="btn btn-secondary btn-sm" onclick="downloadFoodReport()">⬇ Download Food Report</button>
+          <button class="btn btn-secondary btn-sm" onclick="downloadBoothsMenusCsv()">⬇ Download Booths &amp; Menus CSV</button>
+          <button class="btn btn-secondary btn-sm" onclick="document.getElementById('boothsMenusUploadFile').click()">⬆ Upload Booths &amp; Menus CSV</button>
+          <input type="file" id="boothsMenusUploadFile" accept=".csv" style="display:none;">
           <button class="btn btn-primary btn-sm" onclick="openBoothModal()">+ Add Booth</button>
         </div>
       </div>
@@ -1349,7 +1352,7 @@
    ===================================================================== */
 // Bump this string with every deploy — shown in the header so it's obvious
 // (even in an incognito window with zero cache) exactly what version is live.
-const APP_VERSION = "v39";
+const APP_VERSION = "v40";
 document.getElementById("appVersionBadge").textContent = APP_VERSION;
 
 const firebaseConfig = {
@@ -2241,7 +2244,193 @@ function saveBoothTypeEdit() {
   });
 }
 
-/* ---------------- Food Report (downloadable CSV) ---------------- */
+/* ---------------- Booths & Menus CSV import/export ----------------
+   A round-trip CSV for setting up other facilities (SRF, KRF, GARF,
+   Catering & Banquet) without hand-entering every booth/item. One row
+   per menu item; a booth with no items yet gets one row with the item
+   columns blank. Upload matches by ID first, falls back to matching by
+   name, and only ever adds/updates — it never deletes a booth, item, or
+   zone-manager assignment that the file doesn't mention. */
+function parseCsvText(text) {
+  // Minimal RFC 4180-aware parser: handles quoted fields, embedded
+  // commas, embedded newlines, and doubled-quote escaping — the same
+  // format csvEscape() produces on export.
+  const rows = [];
+  let row = [];
+  let field = "";
+  let inQuotes = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (inQuotes) {
+      if (c === '"') {
+        if (text[i + 1] === '"') { field += '"'; i++; }
+        else { inQuotes = false; }
+      } else {
+        field += c;
+      }
+    } else {
+      if (c === '"') { inQuotes = true; }
+      else if (c === ",") { row.push(field); field = ""; }
+      else if (c === "\r") { /* skip, \n handles the line break */ }
+      else if (c === "\n") { row.push(field); rows.push(row); row = []; field = ""; }
+      else { field += c; }
+    }
+  }
+  if (field.length || row.length) { row.push(field); rows.push(row); }
+  return rows.filter(r => r.length > 1 || (r.length === 1 && r[0] !== ""));
+}
+
+function downloadBoothsMenusCsv() {
+  const ids = Object.keys(boothsData);
+  if (!ids.length) { toast("No booths to export yet", "err"); return; }
+
+  const headers = ["Booth ID", "Booth Name", "Booth Type", "Zone Manager(s)", "Booth Open", "Item ID", "Item Name", "Category", "Requires Temp", "Min/Max Safe Temp (F)", "Components"];
+  const rows = [headers];
+
+  ids.forEach(id => {
+    const b = boothsData[id];
+    const boothName = b.name || "Unnamed Booth";
+    const boothType = getBoothType(b);
+    const managers = getBoothManagerNames(b).join(", ");
+    const open = isBoothOpen(b) ? "YES" : "NO";
+    const items = b.menuItems || {};
+    const itemIds = Object.keys(items);
+
+    if (!itemIds.length) {
+      rows.push([id, boothName, boothType, managers, open, "", "", "", "", "", ""]);
+      return;
+    }
+    itemIds.forEach(iid => {
+      const it = items[iid];
+      const comps = it.components ? Object.values(it.components).join(", ") : "";
+      rows.push([
+        id, boothName, boothType, managers, open,
+        iid, it.name || "", it.category || "", it.requiresTemp ? "YES" : "NO",
+        it.minTemp || "", comps
+      ]);
+    });
+  });
+
+  const csvContent = rows.map(r => r.map(csvEscape).join(",")).join("\r\n");
+  const blob = new Blob(["\uFEFF" + csvContent], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const facilityLabel = (facilityMetaData[currentFacilityId] && facilityMetaData[currentFacilityId].name) || currentFacilityId || "facility";
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `booths-menus-${facilityLabel.replace(/[^a-z0-9]/gi, "_")}-${new Date().toISOString().slice(0,10)}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  toast("Booths & Menus CSV downloaded", "ok");
+}
+
+document.getElementById("boothsMenusUploadFile").addEventListener("change", (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = (ev) => {
+    let rows;
+    try {
+      rows = parseCsvText(ev.target.result);
+    } catch (err) {
+      toast("Couldn't read that file — is it a .csv exported from this app?", "err");
+      return;
+    }
+    if (rows.length < 2) { toast("File looks empty", "err"); return; }
+    const dataRows = rows.slice(1); // drop header
+
+    // Build name->id lookups from what's already here, so a re-uploaded
+    // file matches existing booths/items by name even without an ID.
+    const boothByName = {};
+    Object.entries(boothsData || {}).forEach(([id, b]) => { boothByName[(b.name || "").trim()] = id; });
+
+    const boothUpdates = {}; // boothId -> partial booth fields to merge
+    const itemUpdates = {};  // boothId -> { itemId -> item fields }
+    const boothItemByName = {}; // boothId -> { itemName -> itemId } for matching within this run
+
+    Object.entries(boothsData || {}).forEach(([bid, b]) => {
+      boothItemByName[bid] = {};
+      Object.entries(b.menuItems || {}).forEach(([iid, it]) => {
+        boothItemByName[bid][(it.name || "").trim()] = iid;
+      });
+    });
+
+    dataRows.forEach(r => {
+      const [boothId, boothName, boothType, managersStr, openStr, itemId, itemName, category, requiresTempStr, minTemp, componentsStr] = r;
+      if (!boothName || !boothName.trim()) return;
+      const bName = boothName.trim();
+
+      let bid = (boothId && boothId.trim()) ? boothId.trim() : boothByName[bName];
+      if (!bid) {
+        bid = "booth_" + Date.now() + "_" + Math.random().toString(36).slice(2, 8);
+        boothByName[bName] = bid;
+        boothItemByName[bid] = {};
+      }
+
+      if (!boothUpdates[bid]) boothUpdates[bid] = { name: bName };
+      if (boothType && boothType.trim()) boothUpdates[bid].boothType = boothType.trim();
+      if (openStr && openStr.trim()) boothUpdates[bid].isOpen = openStr.trim().toUpperCase() === "YES";
+      if (managersStr && managersStr.trim()) {
+        const names = managersStr.split(",").map(s => s.trim()).filter(Boolean);
+        const zm = {};
+        names.forEach((n, i) => { zm["m" + i] = n; });
+        boothUpdates[bid].zoneManagers = zm;
+      }
+
+      if (!itemName || !itemName.trim()) return; // booth-only row, no item to add
+
+      const iName = itemName.trim();
+      let iid = (itemId && itemId.trim()) ? itemId.trim() : boothItemByName[bid][iName];
+      if (!iid) {
+        iid = "item_" + Date.now() + "_" + Math.random().toString(36).slice(2, 8);
+        boothItemByName[bid][iName] = iid;
+      }
+
+      const requiresTemp = (requiresTempStr || "").trim().toUpperCase() === "YES";
+      const componentsObj = {};
+      (componentsStr || "").split(",").map(s => s.trim()).filter(Boolean).forEach((c, i) => { componentsObj["c" + i] = c; });
+
+      if (!itemUpdates[bid]) itemUpdates[bid] = {};
+      itemUpdates[bid][iid] = {
+        name: iName,
+        category: (category && category.trim()) || "hot-food",
+        requiresTemp,
+        requiresTime: true,
+        minTemp: (requiresTemp && minTemp && minTemp.trim()) ? parseFloat(minTemp) : null,
+        components: componentsObj
+      };
+    });
+
+    const boothCount = Object.keys(boothUpdates).length;
+    const itemCount = Object.values(itemUpdates).reduce((sum, obj) => sum + Object.keys(obj).length, 0);
+
+    if (!confirm(`Import ${boothCount} booth(s) and ${itemCount} menu item(s)? Nothing outside this file will be changed or deleted.`)) {
+      document.getElementById("boothsMenusUploadFile").value = "";
+      return;
+    }
+
+    const writes = [];
+    Object.entries(boothUpdates).forEach(([bid, fields]) => {
+      writes.push(boothsRef().child(bid).update(fields));
+    });
+    Object.entries(itemUpdates).forEach(([bid, items]) => {
+      writes.push(boothsRef().child(bid).child("menuItems").update(items));
+    });
+
+    Promise.all(writes).then(() => {
+      toast(`Imported ${boothCount} booths, ${itemCount} items`, "ok");
+      document.getElementById("boothsMenusUploadFile").value = "";
+    }).catch(err => {
+      console.error("Booths & Menus import failed", err);
+      toast("Import failed partway through — check the console and try again", "err");
+    });
+  };
+  reader.readAsText(file);
+});
+
+
 function csvEscape(val) {
   const s = String(val === null || val === undefined ? "" : val);
   if (/[",\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
