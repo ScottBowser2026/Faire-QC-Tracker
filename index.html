@@ -1073,6 +1073,14 @@
     </div>
     <div id="archiveStatusNote" class="temp-hint" style="margin-bottom:10px;"></div>
 
+    <div class="zm-box" style="margin-bottom:12px; flex-direction:column; align-items:stretch;">
+      <div style="display:flex; justify-content:space-between; align-items:center; gap:10px;">
+        <span class="label" style="margin:0;">Archived Days</span>
+        <button class="btn btn-ghost btn-sm" onclick="loadArchivedDaysList()">Refresh List</button>
+      </div>
+      <div id="archivedDaysList" class="temp-hint">Click Refresh List to load.</div>
+    </div>
+
     <div class="section-head" style="margin-top:8px;">
       <h3 style="margin:0; font-size:1.05rem;">Daily Report — By Booth</h3>
       <button class="btn btn-secondary btn-sm" onclick="downloadDailyReport()">⬇ Download Daily Report</button>
@@ -1333,7 +1341,7 @@
    ===================================================================== */
 // Bump this string with every deploy — shown in the header so it's obvious
 // (even in an incognito window with zero cache) exactly what version is live.
-const APP_VERSION = "v35";
+const APP_VERSION = "v36";
 document.getElementById("appVersionBadge").textContent = APP_VERSION;
 
 const firebaseConfig = {
@@ -2350,7 +2358,9 @@ function computeDailyReportData() {
   const operatingHours = schedule ? Math.max(0, (parseTimeToMinutes(schedule.close) - parseTimeToMinutes(schedule.open)) / 60) : 0;
   const expectedPerBooth = (operatingHours > 0 && targetIntervalHours > 0) ? (operatingHours / targetIntervalHours) : 0;
 
-  const checksForDay = Object.values(checksData || {}).filter(c => c && isSameLocalCalendarDay(c.submittedAt, dateObj));
+  const checksForDay = Object.entries(checksData || {})
+    .map(([id, c]) => c && Object.assign({ _id: id }, c))
+    .filter(c => c && isSameLocalCalendarDay(c.submittedAt, dateObj));
 
   const boothIds = Object.keys(boothsData).sort((a, b) => (boothsData[a].name || "").localeCompare(boothsData[b].name || ""));
   const rows = boothIds.map(id => {
@@ -2838,6 +2848,8 @@ function archiveDailyReport() {
 
   if (!checksForDay.length) {
     if (!confirm("No checks logged for this day yet. Archive an empty summary anyway?")) return;
+  } else if (!confirm(`Archive ${dateKey(dateObj)}? This saves a permanent summary AND clears the ${checksForDay.length} live check record(s) (with photos) for this day — they'll still be logged in the Teams feed as a backup, but won't show in Check Log/Dashboard/Reports live data anymore.`)) {
+    return;
   }
 
   const totalPass = checksForDay.filter(c => c.status === "pass").length;
@@ -2877,9 +2889,49 @@ function archiveDailyReport() {
   };
 
   db.ref("qc/facilities/" + currentFacilityId + "/dailyArchives/" + dateKey(dateObj)).set(summary).then(() => {
-    toast("Day archived", "ok");
-    document.getElementById("archiveStatusNote").textContent = `Archived ${new Date(summary.archivedAt).toLocaleString()}`;
+    if (!checksForDay.length) {
+      toast("Day archived", "ok");
+      document.getElementById("archiveStatusNote").textContent = `Archived ${new Date(summary.archivedAt).toLocaleString()}`;
+      return;
+    }
+    const clearUpdates = {};
+    checksForDay.forEach(c => { clearUpdates[c._id] = null; });
+    return checksRef().update(clearUpdates).then(() => {
+      toast(`Day archived — ${checksForDay.length} live record(s) cleared`, "ok");
+      document.getElementById("archiveStatusNote").textContent = `Archived ${new Date(summary.archivedAt).toLocaleString()}`;
+      renderArchivedSummary(summary, dateObj);
+    });
+  }).catch(err => {
+    console.error("Archive failed", err);
+    toast("Archive failed — check your connection and try again", "err");
   });
+}
+
+function loadArchivedDaysList() {
+  const wrap = document.getElementById("archivedDaysList");
+  if (!db || !currentFacilityId) { wrap.textContent = "Not connected yet — try again in a moment."; return; }
+  wrap.textContent = "Loading…";
+  db.ref("qc/facilities/" + currentFacilityId + "/dailyArchives").once("value").then(snap => {
+    const archives = snap.val() || {};
+    const dates = Object.keys(archives).sort().reverse();
+    if (!dates.length) {
+      wrap.textContent = "No archived days yet.";
+      return;
+    }
+    wrap.innerHTML = dates.map(d => {
+      const a = archives[d];
+      return `<button class="btn btn-ghost btn-sm" style="margin:2px 4px 2px 0;" onclick="jumpToArchivedDay('${d}')">${escapeHtml(d)} — ${a.totalChecks || 0} checks (${a.totalFail || 0} failed)</button>`;
+    }).join("");
+  }).catch(err => {
+    console.error("Couldn't load archived days", err);
+    wrap.textContent = "Couldn't load the list — check your connection and try again.";
+  });
+}
+
+function jumpToArchivedDay(dateStr) {
+  document.getElementById("reportDateInput").value = dateStr;
+  renderDailyReport();
+  checkForArchive();
 }
 
 function checkForArchive() {
