@@ -1349,7 +1349,7 @@
    ===================================================================== */
 // Bump this string with every deploy — shown in the header so it's obvious
 // (even in an incognito window with zero cache) exactly what version is live.
-const APP_VERSION = "v37";
+const APP_VERSION = "v38";
 document.getElementById("appVersionBadge").textContent = APP_VERSION;
 
 const firebaseConfig = {
@@ -2092,29 +2092,25 @@ function detachFacilityListeners() {
 // data cost in the app, so it stays off by default to keep routine check
 // submission lean on a limited connection.
 //
-// Queries by an actual DATE RANGE (last 5 days), not a raw record count.
-// A count-based cap (limitToLast) silently drops the OLDEST records once
-// the count is exceeded — on a busy day with 150+ checks, that meant
-// everything before some cutoff time that day just vanished from the
-// log, which is exactly the bug this replaced. A time-based window can't
-// do that: a busy day just returns more rows, never fewer.
-// Live check data only exists for ~3 days before the auto-archive/cleanup
-// Cloud Function clears it (see functions/index.js, GRACE_PERIOD_DAYS).
-// A few extra days of margin here costs nothing (those days will just come
-// back empty) but guards against the cleanup job running a bit late.
-const CHECKS_HISTORY_WINDOW_DAYS = 5;
-
+// Loads the WHOLE checks node rather than an indexed range query. An
+// orderByChild("submittedAt").startAt(cutoff) query silently drops any
+// record where that field is missing or a different type than expected —
+// which happened for real: some records logged through an out-of-sync
+// app version didn't carry a consistent submittedAt, and they vanished
+// from every report even though they were sitting right there in the
+// database. Loading everything and filtering in JS can't have that
+// failure mode. The nightly auto-archive/cleanup Cloud Function already
+// keeps this node small (~3 days of live data), so the full load stays
+// cheap in practice.
 function attachChecksListenerIfNeeded() {
   if (activeChecksListener) { renderHistory(); return; } // already loaded this session
   const cr = checksRef();
   if (!cr) return;
-  const cutoff = Date.now() - CHECKS_HISTORY_WINDOW_DAYS * 24 * 60 * 60 * 1000;
-  const query = cr.orderByChild("submittedAt").startAt(cutoff);
-  query.on("value", (snap) => {
+  cr.on("value", (snap) => {
     checksData = snap.val() || {};
     renderHistory();
   });
-  activeChecksListener = query;
+  activeChecksListener = cr;
 }
 
 let collapsedBoothGroups = {}; // { groupName: true/false }
@@ -2351,7 +2347,21 @@ function getReportDate() {
 function isSameLocalCalendarDay(ts, dateObj) {
   if (!ts) return false;
   const a = new Date(ts);
+  if (isNaN(a.getTime())) return false;
   return a.getFullYear() === dateObj.getFullYear() && a.getMonth() === dateObj.getMonth() && a.getDate() === dateObj.getDate();
+}
+
+// A check's canonical timestamp for date filtering. Prefers submittedAt,
+// but falls back to checkTime — some records can end up missing
+// submittedAt (e.g. logged through an out-of-sync app version during a
+// deploy), and silently treating those as dateless was a real bug: they
+// vanished from every report even though they were sitting right there
+// in the database. Returns null only if neither field is usable.
+function checkDateForFiltering(c) {
+  if (!c) return null;
+  if (c.submittedAt) return c.submittedAt;
+  if (c.checkTime) return c.checkTime;
+  return null;
 }
 
 function parseTimeToMinutes(hhmm) {
@@ -2368,7 +2378,7 @@ function computeDailyReportData(overrideDateObj) {
 
   const checksForDay = Object.entries(checksData || {})
     .map(([id, c]) => c && Object.assign({ _id: id }, c))
-    .filter(c => c && isSameLocalCalendarDay(c.submittedAt, dateObj));
+    .filter(c => c && isSameLocalCalendarDay(checkDateForFiltering(c), dateObj));
 
   const boothIds = Object.keys(boothsData).sort((a, b) => (boothsData[a].name || "").localeCompare(boothsData[b].name || ""));
   const rows = boothIds.map(id => {
@@ -2925,16 +2935,21 @@ function scanUnarchivedDays() {
   if (!db || !currentFacilityId) { wrap.textContent = "Not connected yet — try again in a moment."; return; }
   wrap.textContent = "Scanning…";
 
-  // Only the last CHECKS_HISTORY_WINDOW_DAYS days are loaded into checksData
-  // at all (see attachChecksListenerIfNeeded) — older days are already
-  // cleared by the nightly auto-archive, so there's nothing further back
-  // for this "catch up" tool to find anyway.
+  // The nightly auto-archive/cleanup Cloud Function keeps live check data
+  // to roughly the last 3 days, so there's rarely much further back for
+  // this "catch up" tool to find — but it's not artificially windowed
+  // here, it scans everything actually in checksData.
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const dayKeys = new Set();
   Object.values(checksData || {}).forEach(c => {
-    if (!c || !c.submittedAt) return;
-    const d = new Date(c.submittedAt);
+    if (!c) return;
+    // Prefer submittedAt, but fall back to checkTime — some records may be
+    // missing submittedAt (e.g. logged through an out-of-sync app version),
+    // and silently skipping those is exactly the bug this tool exists to
+    // catch, not repeat.
+    const d = c.submittedAt ? new Date(c.submittedAt) : (c.checkTime ? new Date(c.checkTime) : null);
+    if (!d || isNaN(d.getTime())) return;
     if (isSameLocalCalendarDay(d, today)) return; // skip today — still in progress
     dayKeys.add(dateKey(d));
   });
@@ -3029,9 +3044,9 @@ function checkForArchive() {
   db.ref("qc/facilities/" + currentFacilityId + "/dailyArchives/" + dateKey(dateObj)).once("value").then(snap => {
     const archive = snap.val();
     if (archive) {
-      note.textContent = `This day has an archived summary from ${new Date(archive.archivedAt).toLocaleString()}. ${checksData && Object.values(checksData).some(c => c && isSameLocalCalendarDay(c.submittedAt, dateObj)) ? "Showing live data below (still available)." : "Live check detail is no longer loaded/available — showing the archived summary instead."}`;
+      note.textContent = `This day has an archived summary from ${new Date(archive.archivedAt).toLocaleString()}. ${checksData && Object.values(checksData).some(c => c && isSameLocalCalendarDay(checkDateForFiltering(c), dateObj)) ? "Showing live data below (still available)." : "Live check detail is no longer loaded/available — showing the archived summary instead."}`;
       // If there's no live data for this date, fall back to rendering the archive directly.
-      const hasLiveData = checksData && Object.values(checksData).some(c => c && isSameLocalCalendarDay(c.submittedAt, dateObj));
+      const hasLiveData = checksData && Object.values(checksData).some(c => c && isSameLocalCalendarDay(checkDateForFiltering(c), dateObj));
       if (!hasLiveData) renderArchivedSummary(archive, dateObj);
     }
   });
@@ -5514,12 +5529,10 @@ function attachDashboardListeners() {
       renderDashboard();
     });
 
-    // Only pulling recent checks to compute today's pass/fail counts and
-    // detect overdue booths — queried by date range (not a raw count cap)
-    // so a busy day's checks can never silently get cut off partway
-    // through, the same bug that hit the Check Log tab.
-    const dashCutoff = Date.now() - CHECKS_HISTORY_WINDOW_DAYS * 24 * 60 * 60 * 1000;
-    const cr = db.ref("qc/facilities/" + fid + "/checks").orderByChild("submittedAt").startAt(dashCutoff);
+    // Loading the whole checks node here too, for the same reason as the
+    // Check Log tab — an indexed submittedAt query can silently exclude
+    // records with an inconsistent/missing submittedAt field.
+    const cr = db.ref("qc/facilities/" + fid + "/checks");
     cr.on("value", (snap) => {
       dashboardData[fid].checks = snap.val() || {};
       renderDashboard();
