@@ -1360,7 +1360,7 @@
    ===================================================================== */
 // Bump this string with every deploy — shown in the header so it's obvious
 // (even in an incognito window with zero cache) exactly what version is live.
-const APP_VERSION = "v42";
+const APP_VERSION = "v43";
 document.getElementById("appVersionBadge").textContent = APP_VERSION;
 
 const firebaseConfig = {
@@ -6067,7 +6067,26 @@ function escapeHtml(str) {
 // new one finishes taking over, which is why this sometimes looked like it
 // "needed two reloads." Instead, listen for the moment control actually
 // changes hands (fires once skipWaiting + clients.claim in sw.js complete)
-// and reload automatically right then — no more guessing or repeat refreshes.
+// and reload automatically right then.
+//
+// BUT — that moment can land in the middle of someone taking a photo:
+// opening the camera backgrounds the tab, and returning to it fires the
+// same "check for update" logic below. If a new version had shipped in
+// the meantime (which happens often during active development), the
+// reload would fire immediately and wipe out an unsaved photo or
+// in-progress form. isSafeToAutoReload() checks for that and, if unsafe,
+// defers the reload — it fires the moment the form actually clears
+// instead of the moment the update arrives.
+function isSafeToAutoReload() {
+  if (typeof compressedPhotoDataUrl !== "undefined" && compressedPhotoDataUrl) return false;
+  if (typeof dvPhotoDataUrl !== "undefined" && dvPhotoDataUrl) return false;
+  if (typeof dvPhotoDataUrl2 !== "undefined" && dvPhotoDataUrl2) return false;
+  if (typeof qtPhotoPresentationUrl !== "undefined" && qtPhotoPresentationUrl) return false;
+  if (typeof qtPhotoTempUrl !== "undefined" && qtPhotoTempUrl) return false;
+  if (typeof pendingResultRecord !== "undefined" && pendingResultRecord) return false;
+  return true;
+}
+
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
     navigator.serviceWorker.register("sw.js").then(reg => {
@@ -6079,11 +6098,22 @@ if ("serviceWorker" in navigator) {
   });
 
   let hasReloadedForUpdate = false;
-  navigator.serviceWorker.addEventListener("controllerchange", () => {
-    if (hasReloadedForUpdate) return; // only ever auto-reload once per page load
+  let reloadPendingForUpdate = false;
+
+  function reloadForUpdateIfSafe() {
+    if (hasReloadedForUpdate) return;
+    if (!isSafeToAutoReload()) { reloadPendingForUpdate = true; return; }
     hasReloadedForUpdate = true;
     window.location.reload();
-  });
+  }
+
+  navigator.serviceWorker.addEventListener("controllerchange", reloadForUpdateIfSafe);
+
+  // Re-check right after every submit/reset — those are exactly the
+  // moments a deferred reload becomes safe (photo cleared, form reset).
+  document.addEventListener("click", () => {
+    if (reloadPendingForUpdate) setTimeout(reloadForUpdateIfSafe, 300);
+  }, true);
 }
 </script>
 <div id="printableReportContainer"></div>
