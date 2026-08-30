@@ -1024,7 +1024,14 @@
       <button class="btn btn-secondary btn-sm" onclick="addNewZoneManager()">Add</button>
     </div>
 
-    <div class="section-head" style="margin-top:22px;"><h3 style="margin:0; font-size:1.05rem;">Manager PINs &amp; Roles</h3></div>
+    <div class="section-head" style="margin-top:22px;">
+      <h3 style="margin:0; font-size:1.05rem;">Manager PINs &amp; Roles</h3>
+      <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        <button class="btn btn-secondary btn-sm" onclick="downloadManagersCsv()">⬇ Download Managers CSV</button>
+        <button class="btn btn-secondary btn-sm" onclick="document.getElementById('managersUploadFile').click()">⬆ Upload Managers CSV</button>
+        <input type="file" id="managersUploadFile" accept=".csv" style="display:none;">
+      </div>
+    </div>
     <table class="log" id="managerPinTable" style="margin-bottom:24px;">
       <thead><tr><th>Name</th><th>Email</th><th>Phone</th><th>PIN</th><th>Role</th><th></th></tr></thead>
       <tbody id="managerPinBody"></tbody>
@@ -1353,7 +1360,7 @@
    ===================================================================== */
 // Bump this string with every deploy — shown in the header so it's obvious
 // (even in an incognito window with zero cache) exactly what version is live.
-const APP_VERSION = "v41";
+const APP_VERSION = "v42";
 document.getElementById("appVersionBadge").textContent = APP_VERSION;
 
 const firebaseConfig = {
@@ -2282,33 +2289,34 @@ function parseCsvText(text) {
 }
 
 // Shared by the full export and the blank-template export — builds the
-// row data, optionally stripping IDs/Zone Manager(s)/Open status so the
-// result creates fresh new entries rather than linking back to this
-// facility's real booths/staff (used for cloning structure to a new site).
+// row data, optionally stripping IDs/Open status so the result creates
+// fresh new entries rather than linking back to this facility's real
+// booths (used for cloning structure to a new site). Zone Manager
+// assignment is handled by the separate Managers import/assignment UI,
+// not here.
 function buildBoothsMenusRows(blankForTemplate) {
   const ids = Object.keys(boothsData);
-  const headers = ["Booth ID", "Booth Name", "Booth Type", "Zone Manager(s)", "Booth Open", "Item ID", "Item Name", "Category", "Requires Temp", "Min/Max Safe Temp (F)", "Components"];
+  const headers = ["Booth ID", "Booth Name", "Booth Type", "Booth Open", "Item ID", "Item Name", "Category", "Requires Temp", "Min/Max Safe Temp (F)", "Components"];
   const rows = [headers];
 
   ids.forEach(id => {
     const b = boothsData[id];
     const boothName = b.name || "Unnamed Booth";
     const boothType = getBoothType(b);
-    const managers = blankForTemplate ? "" : getBoothManagerNames(b).join(", ");
     const open = blankForTemplate ? "" : (isBoothOpen(b) ? "YES" : "NO");
     const boothIdOut = blankForTemplate ? "" : id;
     const items = b.menuItems || {};
     const itemIds = Object.keys(items);
 
     if (!itemIds.length) {
-      rows.push([boothIdOut, boothName, boothType, managers, open, "", "", "", "", "", ""]);
+      rows.push([boothIdOut, boothName, boothType, open, "", "", "", "", "", ""]);
       return;
     }
     itemIds.forEach(iid => {
       const it = items[iid];
       const comps = it.components ? Object.values(it.components).join(", ") : "";
       rows.push([
-        boothIdOut, boothName, boothType, managers, open,
+        boothIdOut, boothName, boothType, open,
         blankForTemplate ? "" : iid, it.name || "", it.category || "", it.requiresTemp ? "YES" : "NO",
         it.minTemp || "", comps
       ]);
@@ -2377,7 +2385,7 @@ document.getElementById("boothsMenusUploadFile").addEventListener("change", (e) 
     });
 
     dataRows.forEach(r => {
-      const [boothId, boothName, boothType, managersStr, openStr, itemId, itemName, category, requiresTempStr, minTemp, componentsStr] = r;
+      const [boothId, boothName, boothType, openStr, itemId, itemName, category, requiresTempStr, minTemp, componentsStr] = r;
       if (!boothName || !boothName.trim()) return;
       const bName = boothName.trim();
 
@@ -2391,12 +2399,6 @@ document.getElementById("boothsMenusUploadFile").addEventListener("change", (e) 
       if (!boothUpdates[bid]) boothUpdates[bid] = { name: bName };
       if (boothType && boothType.trim()) boothUpdates[bid].boothType = boothType.trim();
       if (openStr && openStr.trim()) boothUpdates[bid].isOpen = openStr.trim().toUpperCase() === "YES";
-      if (managersStr && managersStr.trim()) {
-        const names = managersStr.split(",").map(s => s.trim()).filter(Boolean);
-        const zm = {};
-        names.forEach((n, i) => { zm["m" + i] = n; });
-        boothUpdates[bid].zoneManagers = zm;
-      }
 
       if (!itemName || !itemName.trim()) return; // booth-only row, no item to add
 
@@ -5260,6 +5262,121 @@ function addNewZoneManager() {
     toast("Failed to save — check your connection and try again", "err");
   });
 }
+
+/* ---------------- Managers CSV import/export ----------------
+   PINs are never exported (they're stored hashed, not human-readable) —
+   re-importing without a PIN column value leaves an existing manager's
+   PIN untouched; a brand-new manager still needs one, since there's no
+   login without it. Matches by name (managers are already keyed by a
+   sanitized version of their name — see safeZmKey — so no separate ID
+   column is needed). Never deletes a manager not mentioned in the file. */
+function downloadManagersCsv() {
+  const keys = Object.keys(zoneManagersData || {});
+  if (!keys.length) { toast("No managers to export yet", "err"); return; }
+
+  const headers = ["Name", "Phone", "Email", "Role", "Delivery", "Inventory"];
+  const rows = [headers];
+  keys.forEach(key => {
+    const f = managerFields(zoneManagersData[key]);
+    rows.push([f.name, f.phone, f.email, f.role, f.canDeliver ? "YES" : "NO", f.canInventory ? "YES" : "NO"]);
+  });
+
+  const csvContent = rows.map(r => r.map(csvEscape).join(",")).join("\r\n");
+  const blob = new Blob(["\uFEFF" + csvContent], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const facilityLabel = (facilityMetaData[currentFacilityId] && facilityMetaData[currentFacilityId].name) || currentFacilityId || "facility";
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `managers-${facilityLabel.replace(/[^a-z0-9]/gi, "_")}-${new Date().toISOString().slice(0,10)}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  toast("Managers CSV downloaded (PINs are hashed and not included)", "ok");
+}
+
+document.getElementById("managersUploadFile").addEventListener("change", (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = (ev) => {
+    let rows;
+    try {
+      rows = parseCsvText(ev.target.result);
+    } catch (err) {
+      toast("Couldn't read that file — is it a .csv exported from this app?", "err");
+      return;
+    }
+    if (rows.length < 2) { toast("File looks empty", "err"); return; }
+    const dataRows = rows.slice(1);
+
+    const tasks = []; // { key, name, phone, email, role, canDeliver, canInventory, plainPin|null, isNew }
+    const skippedNoPin = [];
+
+    dataRows.forEach(r => {
+      const [name, phone, email, role, deliverStr, inventoryStr, pinMaybe] = r;
+      if (!name || !name.trim()) return;
+      const trimmedName = name.trim();
+      const key = safeZmKey(trimmedName);
+      const isNew = !zoneManagersData[key];
+      // Some exports won't have a PIN column at all (this app's own export
+      // never includes one) — treat a 7th column as an optional plaintext
+      // PIN for bulk-creating brand new managers from a from-scratch sheet.
+      const plainPin = (pinMaybe && pinMaybe.trim()) ? pinMaybe.trim() : null;
+
+      if (isNew && !plainPin) {
+        skippedNoPin.push(trimmedName);
+        return;
+      }
+
+      tasks.push({
+        key,
+        name: trimmedName,
+        phone: (phone || "").trim(),
+        email: (email || "").trim(),
+        role: (role || "").trim().toLowerCase() === "admin" ? "admin" : "manager",
+        canDeliver: (deliverStr || "").trim().toUpperCase() === "YES",
+        canInventory: (inventoryStr || "").trim().toUpperCase() === "YES",
+        plainPin,
+        isNew
+      });
+    });
+
+    const newCount = tasks.filter(t => t.isNew).length;
+    const updateCount = tasks.length - newCount;
+    let confirmMsg = `Import ${newCount} new manager(s) and update ${updateCount} existing one(s)?`;
+    if (skippedNoPin.length) {
+      confirmMsg += ` Note: skipping ${skippedNoPin.length} new manager(s) with no PIN column value (${skippedNoPin.join(", ")}) — a brand-new manager needs a PIN to log in.`;
+    }
+    confirmMsg += " Nothing outside this file will be changed or deleted.";
+    if (!tasks.length) { toast("Nothing to import" + (skippedNoPin.length ? " — new managers need a PIN column" : ""), "err"); return; }
+    if (!confirm(confirmMsg)) {
+      document.getElementById("managersUploadFile").value = "";
+      return;
+    }
+
+    Promise.all(tasks.map(t => {
+      const fields = { name: t.name, phone: t.phone, email: t.email, role: t.role, canDeliver: t.canDeliver, canInventory: t.canInventory };
+      if (t.plainPin) {
+        return hashPin(t.plainPin).then(pinHash => {
+          const current = t.isNew ? {} : managerFields(zoneManagersData[t.key]);
+          return zmRef().child(t.key).set(Object.assign({}, current, fields, { pin: pinHash }));
+        });
+      }
+      // No PIN provided for an existing manager — merge fields, leave pin untouched.
+      const current = managerFields(zoneManagersData[t.key]);
+      return zmRef().child(t.key).set(Object.assign({}, current, fields));
+    })).then(() => {
+      toast(`Imported ${newCount} new, updated ${updateCount} existing manager(s)`, "ok");
+      document.getElementById("managersUploadFile").value = "";
+    }).catch(err => {
+      console.error("Managers import failed", err);
+      toast("Import failed partway through — check the console and try again", "err");
+    });
+  };
+  reader.readAsText(file);
+});
 
 function renderManagerPinTable() {
   const body = document.getElementById("managerPinBody");
