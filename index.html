@@ -966,6 +966,7 @@
         <div style="display:flex; gap:8px; flex-wrap:wrap;">
           <button class="btn btn-secondary btn-sm" onclick="downloadFoodReport()">⬇ Download Food Report</button>
           <button class="btn btn-secondary btn-sm" onclick="downloadBoothsMenusCsv()">⬇ Download Booths &amp; Menus CSV</button>
+          <button class="btn btn-secondary btn-sm" onclick="downloadBoothsMenusTemplateCsv()">⬇ Download Blank Template</button>
           <button class="btn btn-secondary btn-sm" onclick="document.getElementById('boothsMenusUploadFile').click()">⬆ Upload Booths &amp; Menus CSV</button>
           <input type="file" id="boothsMenusUploadFile" accept=".csv" style="display:none;">
           <button class="btn btn-primary btn-sm" onclick="openBoothModal()">+ Add Booth</button>
@@ -1352,7 +1353,7 @@
    ===================================================================== */
 // Bump this string with every deploy — shown in the header so it's obvious
 // (even in an incognito window with zero cache) exactly what version is live.
-const APP_VERSION = "v40";
+const APP_VERSION = "v41";
 document.getElementById("appVersionBadge").textContent = APP_VERSION;
 
 const firebaseConfig = {
@@ -2280,10 +2281,12 @@ function parseCsvText(text) {
   return rows.filter(r => r.length > 1 || (r.length === 1 && r[0] !== ""));
 }
 
-function downloadBoothsMenusCsv() {
+// Shared by the full export and the blank-template export — builds the
+// row data, optionally stripping IDs/Zone Manager(s)/Open status so the
+// result creates fresh new entries rather than linking back to this
+// facility's real booths/staff (used for cloning structure to a new site).
+function buildBoothsMenusRows(blankForTemplate) {
   const ids = Object.keys(boothsData);
-  if (!ids.length) { toast("No booths to export yet", "err"); return; }
-
   const headers = ["Booth ID", "Booth Name", "Booth Type", "Zone Manager(s)", "Booth Open", "Item ID", "Item Name", "Category", "Requires Temp", "Min/Max Safe Temp (F)", "Components"];
   const rows = [headers];
 
@@ -2291,38 +2294,54 @@ function downloadBoothsMenusCsv() {
     const b = boothsData[id];
     const boothName = b.name || "Unnamed Booth";
     const boothType = getBoothType(b);
-    const managers = getBoothManagerNames(b).join(", ");
-    const open = isBoothOpen(b) ? "YES" : "NO";
+    const managers = blankForTemplate ? "" : getBoothManagerNames(b).join(", ");
+    const open = blankForTemplate ? "" : (isBoothOpen(b) ? "YES" : "NO");
+    const boothIdOut = blankForTemplate ? "" : id;
     const items = b.menuItems || {};
     const itemIds = Object.keys(items);
 
     if (!itemIds.length) {
-      rows.push([id, boothName, boothType, managers, open, "", "", "", "", "", ""]);
+      rows.push([boothIdOut, boothName, boothType, managers, open, "", "", "", "", "", ""]);
       return;
     }
     itemIds.forEach(iid => {
       const it = items[iid];
       const comps = it.components ? Object.values(it.components).join(", ") : "";
       rows.push([
-        id, boothName, boothType, managers, open,
-        iid, it.name || "", it.category || "", it.requiresTemp ? "YES" : "NO",
+        boothIdOut, boothName, boothType, managers, open,
+        blankForTemplate ? "" : iid, it.name || "", it.category || "", it.requiresTemp ? "YES" : "NO",
         it.minTemp || "", comps
       ]);
     });
   });
 
+  return rows;
+}
+
+function downloadCsvRows(rows, filenamePrefix) {
   const csvContent = rows.map(r => r.map(csvEscape).join(",")).join("\r\n");
   const blob = new Blob(["\uFEFF" + csvContent], { type: "text/csv;charset=utf-8;" });
   const url = URL.createObjectURL(blob);
   const facilityLabel = (facilityMetaData[currentFacilityId] && facilityMetaData[currentFacilityId].name) || currentFacilityId || "facility";
   const a = document.createElement("a");
   a.href = url;
-  a.download = `booths-menus-${facilityLabel.replace(/[^a-z0-9]/gi, "_")}-${new Date().toISOString().slice(0,10)}.csv`;
+  a.download = `${filenamePrefix}-${facilityLabel.replace(/[^a-z0-9]/gi, "_")}-${new Date().toISOString().slice(0,10)}.csv`;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
+}
+
+function downloadBoothsMenusCsv() {
+  if (!Object.keys(boothsData).length) { toast("No booths to export yet", "err"); return; }
+  downloadCsvRows(buildBoothsMenusRows(false), "booths-menus");
   toast("Booths & Menus CSV downloaded", "ok");
+}
+
+function downloadBoothsMenusTemplateCsv() {
+  if (!Object.keys(boothsData).length) { toast("No booths here yet to clone a template from", "err"); return; }
+  downloadCsvRows(buildBoothsMenusRows(true), "booths-menus-template");
+  toast("Blank template downloaded — Booth/Item IDs, Zone Managers, and Open status are all blank, ready to edit and upload elsewhere", "ok");
 }
 
 document.getElementById("boothsMenusUploadFile").addEventListener("change", (e) => {
