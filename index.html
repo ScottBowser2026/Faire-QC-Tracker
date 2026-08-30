@@ -1081,6 +1081,14 @@
       <div id="archivedDaysList" class="temp-hint">Click Refresh List to load.</div>
     </div>
 
+    <div class="zm-box" style="margin-bottom:12px; flex-direction:column; align-items:stretch;">
+      <div style="display:flex; justify-content:space-between; align-items:center; gap:10px;">
+        <span class="label" style="margin:0;">Catch Up — Unarchived Past Days</span>
+        <button class="btn btn-ghost btn-sm" onclick="scanUnarchivedDays()">Scan</button>
+      </div>
+      <div id="unarchivedDaysList" class="temp-hint">Click Scan to find past days with checks that haven't been archived yet.</div>
+    </div>
+
     <div class="section-head" style="margin-top:8px;">
       <h3 style="margin:0; font-size:1.05rem;">Daily Report — By Booth</h3>
       <button class="btn btn-secondary btn-sm" onclick="downloadDailyReport()">⬇ Download Daily Report</button>
@@ -1341,7 +1349,7 @@
    ===================================================================== */
 // Bump this string with every deploy — shown in the header so it's obvious
 // (even in an incognito window with zero cache) exactly what version is live.
-const APP_VERSION = "v36";
+const APP_VERSION = "v37";
 document.getElementById("appVersionBadge").textContent = APP_VERSION;
 
 const firebaseConfig = {
@@ -2351,8 +2359,8 @@ function parseTimeToMinutes(hhmm) {
   return h * 60 + (m || 0);
 }
 
-function computeDailyReportData() {
-  const dateObj = getReportDate();
+function computeDailyReportData(overrideDateObj) {
+  const dateObj = overrideDateObj || getReportDate();
   const schedule = getScheduleForDate(currentFacilityId, dateObj);
   const targetIntervalHours = getFacilityTargetIntervalHours(currentFacilityId);
   const operatingHours = schedule ? Math.max(0, (parseTimeToMinutes(schedule.close) - parseTimeToMinutes(schedule.open)) / 60) : 0;
@@ -2841,17 +2849,11 @@ function dateKey(dateObj) {
   return dateObj.getFullYear() + "-" + String(dateObj.getMonth() + 1).padStart(2, "0") + "-" + String(dateObj.getDate()).padStart(2, "0");
 }
 
-function archiveDailyReport() {
-  if (!db || !currentFacilityId) return;
-  const data = computeDailyReportData();
+// Shared by both the single-day "Archive This Day" button and bulk
+// archiving. Builds the summary, saves it, then clears the live records
+// for that day. Returns a promise resolving to {dateKey, count}.
+function buildAndSaveArchive(data) {
   const { dateObj, schedule, operatingHours, targetIntervalHours, rows, userRows, checksForDay } = data;
-
-  if (!checksForDay.length) {
-    if (!confirm("No checks logged for this day yet. Archive an empty summary anyway?")) return;
-  } else if (!confirm(`Archive ${dateKey(dateObj)}? This saves a permanent summary AND clears the ${checksForDay.length} live check record(s) (with photos) for this day — they'll still be logged in the Teams feed as a backup, but won't show in Check Log/Dashboard/Reports live data anymore.`)) {
-    return;
-  }
-
   const totalPass = checksForDay.filter(c => c.status === "pass").length;
   const totalFail = checksForDay.filter(c => c.status === "fail").length;
 
@@ -2888,23 +2890,108 @@ function archiveDailyReport() {
     }))
   };
 
-  db.ref("qc/facilities/" + currentFacilityId + "/dailyArchives/" + dateKey(dateObj)).set(summary).then(() => {
-    if (!checksForDay.length) {
-      toast("Day archived", "ok");
-      document.getElementById("archiveStatusNote").textContent = `Archived ${new Date(summary.archivedAt).toLocaleString()}`;
-      return;
-    }
+  const dk = dateKey(dateObj);
+  return db.ref("qc/facilities/" + currentFacilityId + "/dailyArchives/" + dk).set(summary).then(() => {
+    if (!checksForDay.length) return { dateKey: dk, count: 0, summary };
     const clearUpdates = {};
     checksForDay.forEach(c => { clearUpdates[c._id] = null; });
-    return checksRef().update(clearUpdates).then(() => {
-      toast(`Day archived — ${checksForDay.length} live record(s) cleared`, "ok");
-      document.getElementById("archiveStatusNote").textContent = `Archived ${new Date(summary.archivedAt).toLocaleString()}`;
-      renderArchivedSummary(summary, dateObj);
-    });
+    return checksRef().update(clearUpdates).then(() => ({ dateKey: dk, count: checksForDay.length, summary }));
+  });
+}
+
+function archiveDailyReport() {
+  if (!db || !currentFacilityId) return;
+  const data = computeDailyReportData();
+  const { dateObj, checksForDay } = data;
+
+  if (!checksForDay.length) {
+    if (!confirm("No checks logged for this day yet. Archive an empty summary anyway?")) return;
+  } else if (!confirm(`Archive ${dateKey(dateObj)}? This saves a permanent summary AND clears the ${checksForDay.length} live check record(s) (with photos) for this day — they'll still be logged in the Teams feed as a backup, but won't show in Check Log/Dashboard/Reports live data anymore.`)) {
+    return;
+  }
+
+  buildAndSaveArchive(data).then(({ count, summary }) => {
+    toast(count ? `Day archived — ${count} live record(s) cleared` : "Day archived", "ok");
+    document.getElementById("archiveStatusNote").textContent = `Archived ${new Date(summary.archivedAt).toLocaleString()}`;
+    renderArchivedSummary(summary, dateObj);
   }).catch(err => {
     console.error("Archive failed", err);
     toast("Archive failed — check your connection and try again", "err");
   });
+}
+
+function scanUnarchivedDays() {
+  const wrap = document.getElementById("unarchivedDaysList");
+  if (!db || !currentFacilityId) { wrap.textContent = "Not connected yet — try again in a moment."; return; }
+  wrap.textContent = "Scanning…";
+
+  // Only the last CHECKS_HISTORY_WINDOW_DAYS days are loaded into checksData
+  // at all (see attachChecksListenerIfNeeded) — older days are already
+  // cleared by the nightly auto-archive, so there's nothing further back
+  // for this "catch up" tool to find anyway.
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const dayKeys = new Set();
+  Object.values(checksData || {}).forEach(c => {
+    if (!c || !c.submittedAt) return;
+    const d = new Date(c.submittedAt);
+    if (isSameLocalCalendarDay(d, today)) return; // skip today — still in progress
+    dayKeys.add(dateKey(d));
+  });
+
+  db.ref("qc/facilities/" + currentFacilityId + "/dailyArchives").once("value").then(snap => {
+    const archived = snap.val() || {};
+    const missing = [...dayKeys].filter(dk => !archived[dk]).sort();
+    if (!missing.length) {
+      wrap.textContent = "Nothing to catch up — every past day with checks already has an archive.";
+      return;
+    }
+    wrap.innerHTML = `
+      <div style="margin-bottom:8px;">${missing.length} day(s) found with live checks but no archive yet.</div>
+      <div style="margin-bottom:10px;">
+        ${missing.map(dk => `<label style="display:block; margin-bottom:4px;"><input type="checkbox" class="unarchived-day-cb" value="${dk}" checked style="width:auto; margin-right:6px;">${dk}</label>`).join("")}
+      </div>
+      <button class="btn btn-primary btn-sm" onclick="bulkArchiveSelectedDays()">Archive Selected Days</button>
+    `;
+  }).catch(err => {
+    console.error("Couldn't scan for unarchived days", err);
+    wrap.textContent = "Couldn't scan — check your connection and try again.";
+  });
+}
+
+function bulkArchiveSelectedDays() {
+  const checked = Array.from(document.querySelectorAll(".unarchived-day-cb:checked")).map(cb => cb.value);
+  if (!checked.length) { toast("Select at least one day", "err"); return; }
+  if (!confirm(`Archive ${checked.length} day(s)? This saves a permanent summary for each AND clears that day's live check records (with photos) — they'll still be in the Teams feed as backup.`)) return;
+
+  const wrap = document.getElementById("unarchivedDaysList");
+  wrap.textContent = `Archiving 0 of ${checked.length}…`;
+
+  let done = 0;
+  let totalCleared = 0;
+  const runNext = (i) => {
+    if (i >= checked.length) {
+      toast(`Archived ${checked.length} day(s) — ${totalCleared} live record(s) cleared`, "ok");
+      wrap.textContent = `Done — archived ${checked.length} day(s).`;
+      loadArchivedDaysList();
+      return;
+    }
+    const dk = checked[i];
+    const [y, m, d] = dk.split("-").map(Number);
+    const dateObj = new Date(y, m - 1, d);
+    const data = computeDailyReportData(dateObj);
+    buildAndSaveArchive(data).then(({ count }) => {
+      done++;
+      totalCleared += count;
+      wrap.textContent = `Archiving ${done} of ${checked.length}…`;
+      runNext(i + 1);
+    }).catch(err => {
+      console.error("Bulk archive failed on", dk, err);
+      toast(`Failed on ${dk} — stopping. Check your connection and try again.`, "err");
+      wrap.textContent = `Stopped after ${done} of ${checked.length} — an error occurred on ${dk}.`;
+    });
+  };
+  runNext(0);
 }
 
 function loadArchivedDaysList() {
