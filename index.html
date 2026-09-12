@@ -549,6 +549,15 @@
     #printableReportContainer .print-stat .num{display:block; font-size:18px; font-weight:700;}
     #printableReportContainer .print-stat .lbl{display:block; font-size:9px; text-transform:uppercase; color:#555;}
     #printableReportContainer .print-section{page-break-inside:avoid;}
+    #printableReportContainer .print-tasting-card{page-break-inside:avoid; border:1px solid #ccc; border-radius:6px; padding:10px 12px; margin-bottom:10px;}
+    #printableReportContainer .print-tasting-card h3{font-size:13px; margin:0 0 4px;}
+    #printableReportContainer .print-tasting-meta{font-size:10px; color:#555; margin-bottom:8px;}
+    #printableReportContainer .print-tasting-attrs{font-size:10px; margin-bottom:8px;}
+    #printableReportContainer .print-tasting-attrs span{margin-right:14px;}
+    #printableReportContainer .print-tasting-photos{display:flex !important; gap:10px;}
+    #printableReportContainer .print-tasting-photos figure{margin:0; text-align:center;}
+    #printableReportContainer .print-tasting-photos img{width:160px; height:160px; object-fit:cover; border:1px solid #ccc; border-radius:4px; display:block;}
+    #printableReportContainer .print-tasting-photos figcaption{font-size:9px; color:#555; margin-top:2px;}
   }
 </style>
 </head>
@@ -1102,7 +1111,10 @@
 
     <div class="section-head" style="margin-top:8px; border-top:2px solid var(--copper); padding-top:14px;">
       <h3 style="margin:0; font-size:1.05rem;">Food Tasting Report — separate from Check/Delivery/Bar reports</h3>
-      <button class="btn btn-secondary btn-sm" onclick="downloadTastingReport()">⬇ Download Tasting Report</button>
+      <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        <button class="btn btn-secondary btn-sm" onclick="downloadTastingReport()">⬇ Download Tasting Report (CSV)</button>
+        <button class="btn btn-secondary btn-sm" onclick="printTastingReport()">🖨️ Print / Save as PDF — With Photos</button>
+      </div>
     </div>
     <div id="tastingReportWrap"></div>
 
@@ -1366,7 +1378,7 @@
    ===================================================================== */
 // Bump this string with every deploy — shown in the header so it's obvious
 // (even in an incognito window with zero cache) exactly what version is live.
-const APP_VERSION = "v44";
+const APP_VERSION = "v45";
 document.getElementById("appVersionBadge").textContent = APP_VERSION;
 
 const firebaseConfig = {
@@ -2704,7 +2716,45 @@ function downloadTastingReport() {
   downloadCsv(rows, "tasting-report");
 }
 
+function printTastingReport() {
+  const { dateObj, tastingsForDay } = computeTastingReportData();
+  if (!tastingsForDay.length) { toast("No tastings logged for this day", "err"); return; }
 
+  const facilityLabel = (facilityMetaData[currentFacilityId] && facilityMetaData[currentFacilityId].name) || currentFacilityId;
+  const dateLabel = dateObj.toLocaleDateString(undefined, { weekday: "long", year: "numeric", month: "long", day: "numeric" });
+
+  const cards = tastingsForDay.map(t => {
+    const attrs = [
+      t.temp !== null && t.temp !== undefined ? `<span><b>Temp:</b> ${t.temp}°F</span>` : "",
+      t.weight ? `<span><b>Weight:</b> ${t.weight} ${escapeHtml(t.weightUnit || "")}</span>` : "",
+      t.appearance ? `<span><b>Appearance:</b> ${escapeHtml(t.appearance)}</span>` : "",
+      t.taste ? `<span><b>Taste:</b> ${escapeHtml(t.taste)}</span>` : "",
+      t.portionSize ? `<span><b>Portion:</b> ${escapeHtml(t.portionSize)}</span>` : ""
+    ].filter(Boolean).join("");
+
+    const photos = `<div class="print-tasting-photos">
+      ${t.photoUrl ? `<figure><img src="${t.photoUrl}"><figcaption>Presentation</figcaption></figure>` : ""}
+      ${t.tempPhotoUrl ? `<figure><img src="${t.tempPhotoUrl}"><figcaption>Thermometer</figcaption></figure>` : ""}
+    </div>`;
+
+    return `<div class="print-tasting-card">
+      <h3>${escapeHtml(t.itemName || "")} — ${escapeHtml(t.boothName || "")}</h3>
+      <div class="print-tasting-meta">${escapeHtml(t.checkTime || "")} · Tasted by ${escapeHtml(t.checkedBy || "")}</div>
+      <div class="print-tasting-attrs">${attrs}</div>
+      ${t.notes ? `<div class="print-tasting-meta"><b>Notes:</b> ${escapeHtml(t.notes)}</div>` : ""}
+      ${photos}
+    </div>`;
+  }).join("");
+
+  const html = `
+    <h1>Food Tasting Report</h1>
+    <div class="print-meta">${escapeHtml(facilityLabel)} · ${dateLabel} · ${tastingsForDay.length} tasting(s)</div>
+    ${cards}
+  `;
+
+  document.getElementById("printableReportContainer").innerHTML = html;
+  window.print();
+}
 /* ---------------- Time-block breakdown (Booth x Block, Zone Manager x Block) ----------------
    Blocks are generated from the facility's actual open/close time for
    the selected day, sliced into target-interval-sized chunks (e.g. 2
