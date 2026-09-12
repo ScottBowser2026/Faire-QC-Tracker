@@ -1378,7 +1378,7 @@
    ===================================================================== */
 // Bump this string with every deploy — shown in the header so it's obvious
 // (even in an incognito window with zero cache) exactly what version is live.
-const APP_VERSION = "v46";
+const APP_VERSION = "v47";
 document.getElementById("appVersionBadge").textContent = APP_VERSION;
 
 const firebaseConfig = {
@@ -2752,9 +2752,31 @@ function printTastingReport() {
     ${cards}
   `;
 
-  document.getElementById("printableReportContainer").innerHTML = html;
-  window.print();
+  const container = document.getElementById("printableReportContainer");
+  container.innerHTML = html;
+  printWhenImagesReady(container);
 }
+
+// Firing window.print() immediately after setting innerHTML can capture
+// the page before every embedded base64 photo has actually finished
+// decoding — with several tastings on one page (each with two photos),
+// the second image in a pair was consistently blank in testing even
+// though its data was present and correct. Waiting for every <img> to
+// genuinely finish loading (or already be complete) before printing
+// fixes that without an arbitrary delay.
+function printWhenImagesReady(container) {
+  const imgs = Array.from(container.querySelectorAll("img"));
+  if (!imgs.length) { window.print(); return; }
+  const pending = imgs.filter(img => !img.complete || img.naturalWidth === 0);
+  if (!pending.length) { window.print(); return; }
+  let remaining = pending.length;
+  const done = () => { remaining--; if (remaining <= 0) window.print(); };
+  pending.forEach(img => {
+    img.addEventListener("load", done, { once: true });
+    img.addEventListener("error", done, { once: true }); // don't hang the print on one bad photo
+  });
+}
+
 /* ---------------- Time-block breakdown (Booth x Block, Zone Manager x Block) ----------------
    Blocks are generated from the facility's actual open/close time for
    the selected day, sliced into target-interval-sized chunks (e.g. 2
@@ -3040,7 +3062,7 @@ function printFullReport() {
   `;
 
   document.getElementById("printableReportContainer").innerHTML = html;
-  window.print();
+  printWhenImagesReady(document.getElementById("printableReportContainer"));
 }
 
 
