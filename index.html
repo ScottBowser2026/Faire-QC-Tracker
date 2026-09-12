@@ -1073,7 +1073,7 @@
       <h2>Reports</h2>
       <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
         <input type="date" id="reportDateInput" style="padding:7px 10px; border:1px solid var(--line); border-radius:6px;">
-        <button class="btn btn-secondary btn-sm" onclick="renderDailyReport()">Refresh</button>
+        <button class="btn btn-secondary btn-sm" onclick="renderDailyReport(); renderTastingReport();">Refresh</button>
         <button class="btn btn-primary btn-sm" onclick="archiveDailyReport()">📦 Archive This Day</button>
       </div>
     </div>
@@ -1099,6 +1099,12 @@
       </div>
       <div id="unarchivedDaysList" class="temp-hint">Click Scan to find past days with checks that haven't been archived yet.</div>
     </div>
+
+    <div class="section-head" style="margin-top:8px; border-top:2px solid var(--copper); padding-top:14px;">
+      <h3 style="margin:0; font-size:1.05rem;">Food Tasting Report — separate from Check/Delivery/Bar reports</h3>
+      <button class="btn btn-secondary btn-sm" onclick="downloadTastingReport()">⬇ Download Tasting Report</button>
+    </div>
+    <div id="tastingReportWrap"></div>
 
     <div class="section-head" style="margin-top:8px;">
       <h3 style="margin:0; font-size:1.05rem;">Daily Report — By Booth</h3>
@@ -1360,7 +1366,7 @@
    ===================================================================== */
 // Bump this string with every deploy — shown in the header so it's obvious
 // (even in an incognito window with zero cache) exactly what version is live.
-const APP_VERSION = "v43";
+const APP_VERSION = "v44";
 document.getElementById("appVersionBadge").textContent = APP_VERSION;
 
 const firebaseConfig = {
@@ -2541,6 +2547,7 @@ function openReportsTab() {
     dateInput.value = now.getFullYear() + "-" + String(now.getMonth() + 1).padStart(2, "0") + "-" + String(now.getDate()).padStart(2, "0");
   }
   renderDailyReport();
+  renderTastingReport();
   checkForArchive();
 }
 
@@ -2631,6 +2638,72 @@ function computeDailyReportData(overrideDateObj) {
 
   return { dateObj, schedule, operatingHours, targetIntervalHours, expectedPerBooth, rows, userRows, checksForDay };
 }
+
+/* ---------------- Food Tasting Report — separate from every other report ----------------
+   Tastings share the same "checks" node as Check/Delivery/Bar records (all
+   folded in with a type flag), but they don't fit the pass/fail/temp shape
+   the other reports are built around — appearance, taste, portion size,
+   weight, and two photos have nowhere to show up in those tables. This is
+   its own report so that detail is actually visible somewhere. */
+function computeTastingReportData(overrideDateObj) {
+  const dateObj = overrideDateObj || getReportDate();
+  const tastingsForDay = Object.entries(checksData || {})
+    .map(([id, c]) => c && Object.assign({ _id: id }, c))
+    .filter(c => c && c.type === "tasting" && isSameLocalCalendarDay(checkDateForFiltering(c), dateObj))
+    .sort((a, b) => (a.checkTime || "").localeCompare(b.checkTime || ""));
+  return { dateObj, tastingsForDay };
+}
+
+function renderTastingReport() {
+  const wrap = document.getElementById("tastingReportWrap");
+  if (!wrap || !currentFacilityId) return;
+  const { tastingsForDay } = computeTastingReportData();
+
+  if (!tastingsForDay.length) {
+    wrap.innerHTML = `<div class="temp-hint" style="margin-bottom:10px;">No tastings logged for this day.</div>`;
+    return;
+  }
+
+  wrap.innerHTML = `
+    <table class="log">
+      <thead><tr>
+        <th>Time</th><th>Booth</th><th>Item</th><th>Tasted By</th><th>Temp</th><th>Weight</th>
+        <th>Appearance</th><th>Taste</th><th>Portion</th><th>Notes</th><th>Photos</th>
+      </tr></thead>
+      <tbody>
+        ${tastingsForDay.map(t => `
+          <tr>
+            <td data-label="Time" class="mono">${escapeHtml(t.checkTime || "")}</td>
+            <td data-label="Booth">${escapeHtml(t.boothName || "")}</td>
+            <td data-label="Item">${escapeHtml(t.itemName || "")}</td>
+            <td data-label="Tasted By">${escapeHtml(t.checkedBy || "")}</td>
+            <td data-label="Temp" class="mono">${t.temp !== null && t.temp !== undefined ? t.temp + "°F" : "—"}</td>
+            <td data-label="Weight" class="mono">${t.weight ? t.weight + " " + escapeHtml(t.weightUnit || "") : "—"}</td>
+            <td data-label="Appearance">${escapeHtml(t.appearance || "—")}</td>
+            <td data-label="Taste">${escapeHtml(t.taste || "—")}</td>
+            <td data-label="Portion">${escapeHtml(t.portionSize || "—")}</td>
+            <td data-label="Notes">${escapeHtml(t.notes || "")}</td>
+            <td data-label="Photos">
+              ${t.photoUrl ? `<img src="${t.photoUrl}" onclick="openPhotoModal('${t._id}')" style="width:36px;height:36px;object-fit:cover;border-radius:5px;border:1px solid var(--line);cursor:pointer;margin-right:4px;" title="Presentation photo">` : ""}
+              ${t.tempPhotoUrl ? `<img src="${t.tempPhotoUrl}" style="width:36px;height:36px;object-fit:cover;border-radius:5px;border:1px solid var(--line);cursor:pointer;" title="Thermometer photo" onclick="window.open('${t.tempPhotoUrl}','_blank')">` : ""}
+            </td>
+          </tr>`).join("")}
+      </tbody>
+    </table>`;
+}
+
+function downloadTastingReport() {
+  const { tastingsForDay } = computeTastingReportData();
+  if (!tastingsForDay.length) { toast("No tastings logged for this day", "err"); return; }
+  const headers = ["Time", "Booth", "Item", "Tasted By", "Temp", "Weight", "Weight Unit", "Appearance", "Taste", "Portion", "Notes"];
+  const rows = [headers, ...tastingsForDay.map(t => [
+    t.checkTime || "", t.boothName || "", t.itemName || "", t.checkedBy || "",
+    t.temp !== null && t.temp !== undefined ? t.temp : "", t.weight || "", t.weightUnit || "",
+    t.appearance || "", t.taste || "", t.portionSize || "", t.notes || ""
+  ])];
+  downloadCsv(rows, "tasting-report");
+}
+
 
 /* ---------------- Time-block breakdown (Booth x Block, Zone Manager x Block) ----------------
    Blocks are generated from the facility's actual open/close time for
@@ -3241,6 +3314,7 @@ function loadArchivedDaysList() {
 function jumpToArchivedDay(dateStr) {
   document.getElementById("reportDateInput").value = dateStr;
   renderDailyReport();
+  renderTastingReport();
   checkForArchive();
 }
 
@@ -5055,6 +5129,7 @@ document.getElementById("qcNotesSelect").addEventListener("change", (e) => {
 
 document.getElementById("reportDateInput").addEventListener("change", () => {
   renderDailyReport();
+  renderTastingReport();
   checkForArchive();
 });
 
