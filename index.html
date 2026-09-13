@@ -1091,7 +1091,8 @@
       <button class="btn btn-primary btn-sm" onclick="printFullReport()">🖨️ Print / Save as PDF — Everything Below</button>
       <span class="temp-hint">Opens your browser's print dialog — choose "Save as PDF" as the destination to get one file with every section combined.</span>
     </div>
-    <div id="archiveStatusNote" class="temp-hint" style="margin-bottom:10px;"></div>
+    <div id="archiveStatusNote" class="temp-hint" style="margin-bottom:6px;"></div>
+    <button class="btn btn-secondary btn-sm" id="printArchivedDayBtn" style="display:none; margin-bottom:10px;" onclick="printArchivedDay()">🖨️ Print This Archived Day</button>
 
     <div class="zm-box" style="margin-bottom:12px; flex-direction:column; align-items:stretch;">
       <div style="display:flex; justify-content:space-between; align-items:center; gap:10px;">
@@ -1378,7 +1379,7 @@
    ===================================================================== */
 // Bump this string with every deploy — shown in the header so it's obvious
 // (even in an incognito window with zero cache) exactly what version is live.
-const APP_VERSION = "v47";
+const APP_VERSION = "v48";
 document.getElementById("appVersionBadge").textContent = APP_VERSION;
 
 const firebaseConfig = {
@@ -3390,9 +3391,14 @@ function jumpToArchivedDay(dateStr) {
   checkForArchive();
 }
 
+let currentArchiveForPrint = null;
+
 function checkForArchive() {
   const note = document.getElementById("archiveStatusNote");
+  const printBtn = document.getElementById("printArchivedDayBtn");
   note.textContent = "Checking for an archived summary…";
+  printBtn.style.display = "none";
+  currentArchiveForPrint = null;
   if (!db || !currentFacilityId) { note.textContent = ""; return; }
   const dateObj = getReportDate();
   const dk = dateKey(dateObj);
@@ -3404,11 +3410,82 @@ function checkForArchive() {
     }
     const hasLiveData = checksData && Object.values(checksData).some(c => c && isSameLocalCalendarDay(checkDateForFiltering(c), dateObj));
     note.textContent = `This day has an archived summary from ${new Date(archive.archivedAt).toLocaleString()}. ${hasLiveData ? "Showing live data below (still available)." : "Live check detail is no longer loaded/available — showing the archived summary instead."}`;
-    if (!hasLiveData) renderArchivedSummary(archive, dateObj);
+    if (!hasLiveData) {
+      renderArchivedSummary(archive, dateObj);
+      currentArchiveForPrint = { archive, dateObj };
+      printBtn.style.display = "inline-flex";
+    }
   }).catch(err => {
     console.error("checkForArchive failed for", dk, err);
     note.textContent = "Couldn't check for an archived summary — " + (err && err.message ? err.message : "check your connection and try again");
   });
+}
+
+function printArchivedDay() {
+  if (!currentArchiveForPrint) { toast("No archived day currently loaded", "err"); return; }
+  const { archive, dateObj } = currentArchiveForPrint;
+  const dateLabel = dateObj.toLocaleDateString(undefined, { weekday: "long", year: "numeric", month: "long", day: "numeric" });
+  const passRate = (archive.totalPass + archive.totalFail) > 0 ? Math.round((archive.totalPass / (archive.totalPass + archive.totalFail)) * 100) : null;
+  const assignedRows = (archive.booths || []).filter(r => r.hasManager && r.isOpenBooth);
+  const compliancePool = assignedRows.filter(r => r.compliance !== null && r.compliance !== undefined);
+  const avgCompliance = compliancePool.length ? Math.round(compliancePool.reduce((s, r) => s + r.compliance, 0) / compliancePool.length) : null;
+  const needsAttention = assignedRows.filter(r => r.compliance !== null && r.compliance < 60);
+
+  const html = `
+    <h1>Daily Report (Archived) — ${escapeHtml(archive.facilityName || currentFacilityId)}</h1>
+    <div class="print-meta">${dateLabel} · Archived ${new Date(archive.archivedAt).toLocaleString()}</div>
+    <div class="print-note" style="font-size:11px; font-style:italic; color:#555; margin-bottom:14px;">Live check detail (photos, per-check notes) was cleared after archiving — these are the saved summary numbers only.</div>
+
+    <div class="print-section">
+      <h2>Site Assessment</h2>
+      <div class="print-stats">
+        <div class="print-stat"><span class="num">${archive.totalChecks || 0}</span><span class="lbl">Total Checks</span></div>
+        <div class="print-stat"><span class="num">${passRate === null ? "—" : passRate + "%"}</span><span class="lbl">Pass Rate</span></div>
+        <div class="print-stat"><span class="num">${avgCompliance === null ? "—" : avgCompliance + "%"}</span><span class="lbl">Avg. Compliance</span></div>
+      </div>
+      ${needsAttention.length ? `
+        <div style="margin-top:14px;">
+          <b>Needs Attention (below 60% of target):</b>
+          <div class="temp-hint">${needsAttention.map(r => `${escapeHtml(r.boothName)} (${r.compliance}%)`).join(", ")}</div>
+        </div>` : `<div style="margin-top:14px; color:var(--green);">All assigned, open booths met at least 60% of target check frequency.</div>`}
+    </div>
+
+    <div class="print-section">
+      <h2>Daily Report — By Booth</h2>
+      <table>
+        <thead><tr><th>Booth</th><th>Checks</th><th>Pass</th><th>Fail</th><th>First</th><th>Last</th><th>Rate/hr</th><th>vs Target</th></tr></thead>
+        <tbody>
+          ${(archive.booths || []).map(r => `<tr>
+            <td>${escapeHtml(r.boothName)}</td>
+            <td>${r.count}</td><td>${r.passCount}</td><td>${r.failCount}</td>
+            <td>${escapeHtml(r.firstTime || "")}</td><td>${escapeHtml(r.lastTime || "")}</td>
+            <td>${r.actualRate ? r.actualRate.toFixed(2) : "—"}</td>
+            <td>${r.compliance === null || r.compliance === undefined ? "—" : r.compliance + "%"}</td>
+          </tr>`).join("")}
+        </tbody>
+      </table>
+    </div>
+
+    ${(archive.users || []).length ? `
+    <div class="print-section">
+      <h2>Daily Report — By User</h2>
+      <table>
+        <thead><tr><th>User</th><th>Checks</th><th>Pass</th><th>Fail</th><th>Booths Checked</th><th>First</th><th>Last</th></tr></thead>
+        <tbody>
+          ${archive.users.map(u => `<tr>
+            <td>${escapeHtml(u.name)}</td>
+            <td>${u.count}</td><td>${u.passCount}</td><td>${u.failCount}</td>
+            <td>${escapeHtml(u.boothsChecked || "")}</td>
+            <td>${escapeHtml(u.firstTime || "")}</td><td>${escapeHtml(u.lastTime || "")}</td>
+          </tr>`).join("")}
+        </tbody>
+      </table>
+    </div>` : ""}
+  `;
+
+  const container = document.getElementById("printableReportContainer");
+  container.innerHTML = html;
+  printWhenImagesReady(container);
 }
 
 function renderArchivedSummary(archive, dateObj) {
