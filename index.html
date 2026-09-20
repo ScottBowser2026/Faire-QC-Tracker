@@ -1200,6 +1200,12 @@
       <span class="temp-hint">Controls all text alerts system-wide (reminders, overdue booths, failed checks) across every facility.</span>
     </div>
 
+    <div class="zm-box" style="border-left-color:var(--copper);">
+      <span class="label">Force Refresh</span>
+      <button class="btn btn-secondary btn-sm" onclick="triggerForceRefreshAll()">🔄 Force Refresh Everyone</button>
+      <span class="temp-hint">Pushes an update to every device currently using the app, across all facilities. Won't interrupt anyone mid-photo or mid-check — it applies the moment their current task is done.</span>
+    </div>
+
     <div class="zm-box">
       <span class="label">Add New Superadmin</span>
       <input type="text" id="newSuName" placeholder="e.g. Scott Bowser" style="max-width:150px;">
@@ -1387,7 +1393,9 @@
    ===================================================================== */
 // Bump this string with every deploy — shown in the header so it's obvious
 // (even in an incognito window with zero cache) exactly what version is live.
-const APP_VERSION = "v50";
+// Version matches the date it was pushed (MMDD) — update this to today's
+// date on every deploy, not an incrementing counter.
+const APP_VERSION = "0920";
 document.getElementById("appVersionBadge").textContent = APP_VERSION;
 
 const firebaseConfig = {
@@ -6344,6 +6352,50 @@ function escapeHtml(str) {
     "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
   }[m]));
 }
+
+/* ---------------- Force Refresh (Superadmin) ----------------
+   Pushes a refresh to every device currently using the app, across every
+   facility, without needing to reach each person individually. Reuses
+   the same isSafeToAutoReload() check as the automatic update-reload
+   logic below — it never fires mid-photo or mid-form, it just waits
+   until the current task actually finishes. */
+function forceRefreshRef() { return db ? db.ref("qc/forceRefreshSignal") : null; }
+
+function triggerForceRefreshAll() {
+  if (!forceRefreshRef()) { toast("Not connected yet — try again in a moment", "err"); return; }
+  if (!confirm("Push a refresh to every device currently using the app, across all facilities? It'll apply the moment each person's current task finishes — nothing gets interrupted.")) return;
+  forceRefreshRef().set(Date.now()).then(() => {
+    toast("Refresh signal sent to all devices", "ok");
+  }).catch(err => {
+    console.error("Force refresh signal failed", err);
+    toast("Couldn't send the signal — check your connection and try again", "err");
+  });
+}
+
+let hasAppliedForceRefresh = false;
+let forceRefreshPending = false;
+function applyForceRefreshIfSafe() {
+  if (hasAppliedForceRefresh) return;
+  if (!isSafeToAutoReload()) { forceRefreshPending = true; return; }
+  hasAppliedForceRefresh = true;
+  window.location.reload();
+}
+document.addEventListener("click", () => {
+  if (forceRefreshPending) setTimeout(applyForceRefreshIfSafe, 300);
+}, true);
+
+(function attachForceRefreshListener() {
+  const ref = forceRefreshRef();
+  if (!ref) return;
+  let hasSeenInitialValue = false;
+  ref.on("value", () => {
+    // The very first callback fires with whatever value is already
+    // sitting there from a previous signal — that's not a new refresh
+    // request, just the listener attaching. Only react to changes after that.
+    if (!hasSeenInitialValue) { hasSeenInitialValue = true; return; }
+    applyForceRefreshIfSafe();
+  });
+})();
 
 /* ---------------- PWA service worker registration ---------------- */
 // A hard refresh alone doesn't reliably show a new deploy: the browser can
