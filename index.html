@@ -1023,6 +1023,7 @@
       <select id="newZmRole" style="padding:7px 10px; border:1px solid var(--line); border-radius:6px;">
         <option value="manager">Zone Manager</option>
         <option value="boothlead">Booth Lead</option>
+        <option value="secretshopper">Secret Shopper</option>
         <option value="admin">Admin</option>
       </select>
       <label style="display:flex; align-items:center; gap:4px; font-size:.85rem;">
@@ -1030,9 +1031,6 @@
       </label>
       <label style="display:flex; align-items:center; gap:4px; font-size:.85rem;">
         <input type="checkbox" id="newZmCanInventory" style="width:auto;"> Inventory
-      </label>
-      <label style="display:flex; align-items:center; gap:4px; font-size:.85rem;">
-        <input type="checkbox" id="newZmCanSecretShop" style="width:auto;"> Secret Shopper
       </label>
       <button class="btn btn-secondary btn-sm" onclick="addNewZoneManager()">Add</button>
     </div>
@@ -1616,7 +1614,7 @@ function tryRestoreSessionOnLoad() {
 function loginAsFacilityUser(facilityId, key, entry, cachedMeta) {
   currentFacilityId = facilityId;
   isSuperadmin = false;
-  loggedInManager = { key, name: entry.name, pin: entry.pin, role: entry.role || "manager", canDeliver: entry.canDeliver === true, canInventory: entry.canInventory === true, canSecretShop: entry.canSecretShop === true, facilityId };
+  loggedInManager = { key, name: entry.name, pin: entry.pin, role: entry.role || "manager", canDeliver: entry.canDeliver === true, canInventory: entry.canInventory === true, facilityId };
 
   if (cachedMeta) {
     facilityMetaData = {};
@@ -1674,7 +1672,7 @@ function finishLogin() {
   const badge = document.getElementById("loggedInAs");
   badge.style.display = "inline-block";
   badge.className = "status-pill live";
-  const roleTag = loggedInManager.role === "admin" ? " (Admin)" : loggedInManager.role === "superadmin" ? " (Superadmin)" : loggedInManager.role === "boothlead" ? " (Booth Lead)" : "";
+  const roleTag = loggedInManager.role === "admin" ? " (Admin)" : loggedInManager.role === "superadmin" ? " (Superadmin)" : loggedInManager.role === "boothlead" ? " (Booth Lead)" : loggedInManager.role === "secretshopper" ? " (Secret Shopper)" : "";
   badge.textContent = `${loggedInManager.name}${roleTag}`;
   document.getElementById("logoutBtn").style.display = "inline-flex";
 
@@ -1729,7 +1727,7 @@ function finishLogin() {
     historyTab.style.display = "none";
   }
 
-  const canSeeTastingTab = loggedInManager.role === "admin" || loggedInManager.role === "superadmin" || loggedInManager.canSecretShop;
+  const canSeeTastingTab = loggedInManager.role === "admin" || loggedInManager.role === "superadmin" || loggedInManager.role === "secretshopper";
   tastingTab.style.display = canSeeTastingTab ? "" : "none";
 
   const canSeeInventoryTab = loggedInManager.role === "admin" || loggedInManager.role === "superadmin" || loggedInManager.canInventory;
@@ -3945,7 +3943,7 @@ function computeStartChooserAccess() {
     showDelivery: !!loggedInManager.canDeliver,
     showInventory: !!loggedInManager.canInventory,
     showBarStatus: barIds.length > 0,
-    showTasting: !!loggedInManager.canSecretShop
+    showTasting: loggedInManager.role === "secretshopper"
   };
 }
 function updateStartChooserTiles() {
@@ -4620,7 +4618,7 @@ setQtDefaultTime();
 
 document.getElementById("qtSubmitBtn").addEventListener("click", () => {
   if (!loggedInManager) { toast("Please log in first", "err"); return; }
-  if (loggedInManager.role !== "admin" && loggedInManager.role !== "superadmin" && !loggedInManager.canSecretShop) {
+  if (loggedInManager.role !== "admin" && loggedInManager.role !== "superadmin" && loggedInManager.role !== "secretshopper") {
     toast("Only Admins, Superadmins, or Secret Shoppers can log tastings", "err");
     return;
   }
@@ -5458,11 +5456,10 @@ function managerFields(entry) {
       phone: entry.phone || "",
       email: entry.email || "",
       canDeliver: entry.canDeliver === true,
-      canInventory: entry.canInventory === true,
-      canSecretShop: entry.canSecretShop === true
+      canInventory: entry.canInventory === true
     };
   }
-  return { name: entry || "", pin: "", role: "manager", phone: "", email: "", canDeliver: false, canInventory: false, canSecretShop: false };
+  return { name: entry || "", pin: "", role: "manager", phone: "", email: "", canDeliver: false, canInventory: false };
 }
 
 function saveManagerRecord(key, overrides) {
@@ -5484,7 +5481,6 @@ function addNewZoneManager() {
   const roleInput = document.getElementById("newZmRole");
   const canDeliverInput = document.getElementById("newZmCanDeliver");
   const canInventoryInput = document.getElementById("newZmCanInventory");
-  const canSecretShopInput = document.getElementById("newZmCanSecretShop");
   const name = nameInput.value.trim();
   const email = emailInput.value.trim();
   const phone = phoneInput.value.trim();
@@ -5492,12 +5488,11 @@ function addNewZoneManager() {
   const role = roleInput.value;
   const canDeliver = canDeliverInput.checked;
   const canInventory = canInventoryInput.checked;
-  const canSecretShop = canSecretShopInput.checked;
   if (!name) { toast("Enter a name first", "err"); return; }
   if (!pin || pin.length < 4) { toast("Enter a PIN of at least 4 digits", "err"); return; }
   if (!zmRef()) { toast("Firebase not configured yet", "err"); return; }
   hashPin(pin).then(pinHash => {
-    return zmRef().child(safeZmKey(name)).set({ name, pin: pinHash, role, phone, email, canDeliver, canInventory, canSecretShop }).then(() => {
+    return zmRef().child(safeZmKey(name)).set({ name, pin: pinHash, role, phone, email, canDeliver, canInventory }).then(() => {
       nameInput.value = "";
       emailInput.value = "";
       phoneInput.value = "";
@@ -5505,7 +5500,6 @@ function addNewZoneManager() {
       roleInput.value = "manager";
       canDeliverInput.checked = false;
       canInventoryInput.checked = false;
-      canSecretShopInput.checked = false;
       toast("Manager added", "ok");
     });
   }).catch(err => {
@@ -5525,12 +5519,12 @@ function downloadManagersCsv() {
   const keys = Object.keys(zoneManagersData || {});
   if (!keys.length) { toast("No managers to export yet", "err"); return; }
 
-  const headers = ["Name", "Phone", "Email", "Role", "Delivery", "Inventory", "Secret Shopper"];
+  const headers = ["Name", "Phone", "Email", "Role", "Delivery", "Inventory"];
   const rows = [headers];
-  const ROLE_EXPORT_LABELS = { manager: "Zone Manager", boothlead: "Booth Lead", admin: "Admin" };
+  const ROLE_EXPORT_LABELS = { manager: "Zone Manager", boothlead: "Booth Lead", secretshopper: "Secret Shopper", admin: "Admin" };
   keys.forEach(key => {
     const f = managerFields(zoneManagersData[key]);
-    rows.push([f.name, f.phone, f.email, ROLE_EXPORT_LABELS[f.role] || f.role, f.canDeliver ? "YES" : "NO", f.canInventory ? "YES" : "NO", f.canSecretShop ? "YES" : "NO"]);
+    rows.push([f.name, f.phone, f.email, ROLE_EXPORT_LABELS[f.role] || f.role, f.canDeliver ? "YES" : "NO", f.canInventory ? "YES" : "NO"]);
   });
 
   const csvContent = rows.map(r => r.map(csvEscape).join(",")).join("\r\n");
@@ -5563,17 +5557,17 @@ document.getElementById("managersUploadFile").addEventListener("change", (e) => 
     if (rows.length < 2) { toast("File looks empty", "err"); return; }
     const dataRows = rows.slice(1);
 
-    const tasks = []; // { key, name, phone, email, role, canDeliver, canInventory, canSecretShop, plainPin|null, isNew }
+    const tasks = []; // { key, name, phone, email, role, canDeliver, canInventory, plainPin|null, isNew }
     const skippedNoPin = [];
 
     dataRows.forEach(r => {
-      const [name, phone, email, role, deliverStr, inventoryStr, secretShopStr, pinMaybe] = r;
+      const [name, phone, email, role, deliverStr, inventoryStr, pinMaybe] = r;
       if (!name || !name.trim()) return;
       const trimmedName = name.trim();
       const key = safeZmKey(trimmedName);
       const isNew = !zoneManagersData[key];
       // Some exports won't have a PIN column at all (this app's own export
-      // never includes one) — treat an 8th column as an optional plaintext
+      // never includes one) — treat a 7th column as an optional plaintext
       // PIN for bulk-creating brand new managers from a from-scratch sheet.
       const plainPin = (pinMaybe && pinMaybe.trim()) ? pinMaybe.trim() : null;
 
@@ -5591,11 +5585,11 @@ document.getElementById("managersUploadFile").addEventListener("change", (e) => 
           const r = (role || "").trim().toLowerCase();
           if (r === "admin") return "admin";
           if (r === "boothlead" || r === "booth lead") return "boothlead";
+          if (r === "secretshopper" || r === "secret shopper") return "secretshopper";
           return "manager"; // covers "manager", "zone manager", and blank
         })(),
         canDeliver: (deliverStr || "").trim().toUpperCase() === "YES",
         canInventory: (inventoryStr || "").trim().toUpperCase() === "YES",
-        canSecretShop: (secretShopStr || "").trim().toUpperCase() === "YES",
         plainPin,
         isNew
       });
@@ -5615,7 +5609,7 @@ document.getElementById("managersUploadFile").addEventListener("change", (e) => 
     }
 
     Promise.all(tasks.map(t => {
-      const fields = { name: t.name, phone: t.phone, email: t.email, role: t.role, canDeliver: t.canDeliver, canInventory: t.canInventory, canSecretShop: t.canSecretShop };
+      const fields = { name: t.name, phone: t.phone, email: t.email, role: t.role, canDeliver: t.canDeliver, canInventory: t.canInventory };
       if (t.plainPin) {
         return hashPin(t.plainPin).then(pinHash => {
           const current = t.isNew ? {} : managerFields(zoneManagersData[t.key]);
@@ -5649,7 +5643,7 @@ function renderManagerPinTable() {
     return;
   }
 
-  const ROLE_LABELS = { manager: "Zone Manager", boothlead: "Booth Lead", admin: "Admin" };
+  const ROLE_LABELS = { manager: "Zone Manager", boothlead: "Booth Lead", secretshopper: "Secret Shopper", admin: "Admin" };
 
   body.innerHTML = keys.sort((a, b) => (managerFields(zoneManagersData[a]).name || "").localeCompare(managerFields(zoneManagersData[b]).name || "")).map(key => {
     const f = managerFields(zoneManagersData[key]);
@@ -5666,8 +5660,7 @@ function renderManagerPinTable() {
         </td>
         <td style="white-space:nowrap;">
           <label style="margin-right:6px;" title="Delivery"><input type="checkbox" style="width:auto; vertical-align:middle;" ${f.canDeliver ? "checked" : ""} onchange="toggleManagerDelivery('${key}')"> Del</label>
-          <label style="margin-right:6px;" title="Inventory"><input type="checkbox" style="width:auto; vertical-align:middle;" ${f.canInventory ? "checked" : ""} onchange="toggleManagerInventory('${key}')"> Inv</label>
-          <label title="Secret Shopper"><input type="checkbox" style="width:auto; vertical-align:middle;" ${f.canSecretShop ? "checked" : ""} onchange="toggleManagerSecretShop('${key}')"> SS</label>
+          <label title="Inventory"><input type="checkbox" style="width:auto; vertical-align:middle;" ${f.canInventory ? "checked" : ""} onchange="toggleManagerInventory('${key}')"> Inv</label>
         </td>
         <td>
           <select style="padding:3px 6px; font-size:.85em; border:1px solid var(--line); border-radius:5px;" onchange="handleManagerAction('${key}', this.value, this)">
@@ -5684,7 +5677,7 @@ function renderManagerPinTable() {
 
 function changeManagerRole(key, newRole) {
   const f = managerFields(zoneManagersData[key]);
-  const ROLE_LABELS = { manager: "a Zone Manager", boothlead: "a Booth Lead", admin: "an Admin" };
+  const ROLE_LABELS = { manager: "a Zone Manager", boothlead: "a Booth Lead", secretshopper: "a Secret Shopper", admin: "an Admin" };
   saveManagerRecord(key, { role: newRole }).then(() => {
     toast(`${f.name} is now ${ROLE_LABELS[newRole] || newRole}`, "ok");
   }).catch((err) => {
@@ -5770,15 +5763,6 @@ function toggleManagerInventory(key) {
   });
 }
 
-function toggleManagerSecretShop(key) {
-  const f = managerFields(zoneManagersData[key]);
-  const newVal = !f.canSecretShop;
-  saveManagerRecord(key, { canSecretShop: newVal }).then(() => {
-    toast(`${f.name} ${newVal ? "can now log secret shopper tastings" : "no longer logs secret shopper tastings"}`, "ok");
-  }).catch((err) => {
-    toast("Couldn't save — " + (err && err.message ? err.message : "check your connection and try again"), "err");
-  });
-}
 
 function resetManagerPin(key) {
   const f = managerFields(zoneManagersData[key]);
