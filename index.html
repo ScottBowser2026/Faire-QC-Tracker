@@ -490,6 +490,56 @@
   .modal-box h3{margin-top:0;}
   .modal-actions{display:flex; justify-content:flex-end; gap:8px; margin-top:16px;}
 
+  /* ---------------- PIN Login Gate (dark, modern — matches the Faire Alert app) ---------------- */
+  #loginGate{ background:#15181b; flex-direction:column; }
+  .pin-card{
+    background:#1e2226; border:1px solid rgba(255,255,255,.06);
+    border-radius:20px; padding:34px 30px 28px; width:100%; max-width:340px;
+    box-shadow:0 24px 60px rgba(0,0,0,.5); text-align:center;
+  }
+  .pin-card-header{
+    text-transform:uppercase; letter-spacing:.12em; font-size:.68rem;
+    color:#8b939b; line-height:1.6; margin-bottom:14px; font-family:'Inter',sans-serif;
+  }
+  .pin-card-title{
+    font-family:'Inter',sans-serif; font-size:1.5rem; font-weight:800;
+    color:#f5f6f7; margin:0 0 22px;
+  }
+  .pin-dots{ display:flex; justify-content:center; gap:14px; margin-bottom:6px; }
+  .pin-dot{
+    width:13px; height:13px; border-radius:50%;
+    border:2px solid #454c53; background:transparent; transition:background .12s, border-color .12s;
+  }
+  .pin-dot.filled{ background:#e8eaed; border-color:#e8eaed; }
+  .pin-error{ color:#ff8a80; font-size:.78rem; min-height:32px; margin:10px 0 4px; line-height:1.4; }
+  .pin-keypad{ display:grid; grid-template-columns:repeat(3, 1fr); gap:12px; margin-top:10px; }
+  .pin-key{
+    background:#262b30; border:1px solid rgba(255,255,255,.05); border-radius:14px;
+    padding:16px 0; font-size:1.3rem; font-weight:600; color:#eef0f2;
+    font-family:'Inter',sans-serif; cursor:pointer; transition:background .1s;
+  }
+  .pin-key:hover, .pin-key:active{ background:#31373d; }
+  .pin-key-text{ font-size:.92rem; font-weight:500; color:#aab1b8; }
+  .pin-forgot{ margin-top:22px; }
+  .pin-forgot a{ color:#35d6c1; font-size:.85rem; text-decoration:none; }
+  .pin-forgot a:hover{ text-decoration:underline; }
+  .pin-footer{
+    max-width:360px; margin:22px auto 0; text-align:center;
+    color:#6b7278; font-size:.78rem; line-height:1.6; font-family:'Inter',sans-serif;
+  }
+  .pin-email-input{
+    width:100%; padding:12px 14px; border-radius:10px; border:1px solid rgba(255,255,255,.1);
+    background:#262b30; color:#f5f6f7; font-size:.95rem; text-align:center; font-family:'Inter',sans-serif;
+    box-sizing:border-box;
+  }
+  .pin-email-input::placeholder{ color:#6b7278; }
+  .pin-btn{
+    width:100%; padding:13px 0; border-radius:12px; border:none;
+    background:#2f353b; color:#f5f6f7; font-weight:600; font-size:.95rem;
+    cursor:pointer; font-family:'Inter',sans-serif; margin-top:14px;
+  }
+  .pin-btn:hover{ background:#383f46; }
+
   .chip-row{display:flex; flex-wrap:wrap; gap:6px; margin-top:6px;}
   .chip{
     background:var(--parchment-dim);
@@ -563,32 +613,48 @@
 </head>
 <body>
 
-<div class="modal-overlay show" id="loginGate" style="z-index:300; background:var(--ink);">
-  <div class="modal-box" style="max-width:340px; text-align:center;">
-    <div id="loginPanel">
-      <h3 style="margin-bottom:2px;">Faire Food QC Login</h3>
-      <div class="temp-hint" style="margin-bottom:16px;">Enter your PIN to sign in</div>
-      <div class="field">
-        <input type="password" inputmode="numeric" id="loginPinInput" placeholder="PIN" style="text-align:center; font-size:1.3rem; letter-spacing:.2em;" maxlength="8">
+<div class="modal-overlay show" id="loginGate" style="z-index:300;">
+  <div style="display:flex; flex-direction:column; align-items:center; width:100%; max-width:340px;">
+    <div id="loginPanel" class="pin-card">
+      <div class="pin-card-header">Lancelot Entertainment &middot; Faire Food Ops</div>
+      <h3 class="pin-card-title">Enter your PIN</h3>
+      <div class="pin-dots" id="pinDotsRow"></div>
+      <div id="loginError" class="pin-error"></div>
+      <div class="pin-keypad">
+        <button type="button" class="pin-key" onclick="pinKeyTap(1)">1</button>
+        <button type="button" class="pin-key" onclick="pinKeyTap(2)">2</button>
+        <button type="button" class="pin-key" onclick="pinKeyTap(3)">3</button>
+        <button type="button" class="pin-key" onclick="pinKeyTap(4)">4</button>
+        <button type="button" class="pin-key" onclick="pinKeyTap(5)">5</button>
+        <button type="button" class="pin-key" onclick="pinKeyTap(6)">6</button>
+        <button type="button" class="pin-key" onclick="pinKeyTap(7)">7</button>
+        <button type="button" class="pin-key" onclick="pinKeyTap(8)">8</button>
+        <button type="button" class="pin-key" onclick="pinKeyTap(9)">9</button>
+        <button type="button" class="pin-key pin-key-text" onclick="pinKeyClear()">Clear</button>
+        <button type="button" class="pin-key" onclick="pinKeyTap(0)">0</button>
+        <button type="button" class="pin-key pin-key-text" onclick="pinKeyBackspace()" aria-label="Backspace">&#9003;</button>
       </div>
-      <div id="loginError" style="color:var(--red); font-size:.82rem; min-height:18px; margin-bottom:6px;"></div>
-      <button class="btn btn-primary" id="loginSubmitBtn" style="width:100%; justify-content:center; padding:11px;">Log In</button>
-      <div style="margin-top:14px;">
-        <a href="#" onclick="showForgotPinPanel(); return false;" style="color:var(--copper); font-size:.82rem; text-decoration:underline;">Forgot PIN?</a>
+      <div class="pin-forgot">
+        <a href="#" onclick="showForgotPinPanel(); return false;">Forgot PIN?</a>
+      </div>
+      <input type="hidden" id="loginPinInput" value="">
+      <button id="loginSubmitBtn" style="display:none;" aria-hidden="true">Log In</button>
+    </div>
+
+    <div id="forgotPinPanel" class="pin-card" style="display:none;">
+      <h3 class="pin-card-title" style="font-size:1.2rem; margin-bottom:6px;">Reset Your PIN</h3>
+      <div style="color:#aab1b8; font-size:.85rem; margin-bottom:18px;">Enter the email on file and we'll send a new PIN</div>
+      <input type="email" id="forgotPinEmail" class="pin-email-input" placeholder="you@example.com">
+      <div id="forgotPinMsg" style="color:#aab1b8; font-size:.82rem; min-height:18px; margin-top:10px;"></div>
+      <button class="pin-btn" id="forgotPinSubmitBtn">Send New PIN</button>
+      <div class="pin-forgot">
+        <a href="#" onclick="showLoginPanel(); return false;">Back to login</a>
       </div>
     </div>
 
-    <div id="forgotPinPanel" style="display:none;">
-      <h3 style="margin-bottom:2px;">Reset Your PIN</h3>
-      <div class="temp-hint" style="margin-bottom:16px;">Enter the email on file and we'll send a new PIN</div>
-      <div class="field">
-        <input type="email" id="forgotPinEmail" placeholder="you@example.com" style="text-align:center;">
-      </div>
-      <div id="forgotPinMsg" style="color:var(--slate); font-size:.82rem; min-height:18px; margin-bottom:6px;"></div>
-      <button class="btn btn-primary" id="forgotPinSubmitBtn" style="width:100%; justify-content:center; padding:11px;">Send New PIN</button>
-      <div style="margin-top:14px;">
-        <a href="#" onclick="showLoginPanel(); return false;" style="color:var(--copper); font-size:.82rem; text-decoration:underline;">Back to login</a>
-      </div>
+    <div class="pin-footer">
+      Operated by Lancelot Entertainment Investment Co. for internal food-safety and quality-control use.<br>
+      Not a public service. Questions? Contact your F&amp;B Director.
     </div>
   </div>
 </div>
@@ -1482,6 +1548,7 @@ function attemptLogin() {
   }).catch(err => {
     console.error(err);
     errEl.textContent = "Login failed — check your connection and try again.";
+    resetPinKeypadEntry();
   });
 }
 
@@ -1517,6 +1584,7 @@ function attemptOnlineLogin(pin, pinHash, errEl) {
         }
       }
       errEl.textContent = "PIN not recognized. Try again or see your F&B Director.";
+      resetPinKeypadEntry();
       return true; // resolved (not an error/timeout) — just no match
     });
   });
@@ -1526,6 +1594,7 @@ function attemptOfflineLogin(pin, pinHash, errEl) {
   const dir = getCachedLoginDirectory();
   if (!dir) {
     errEl.textContent = "No connection, and no offline data saved on this device yet. Connect once first, then offline login will work.";
+    resetPinKeypadEntry();
     return;
   }
 
@@ -1557,6 +1626,7 @@ function attemptOfflineLogin(pin, pinHash, errEl) {
     }
   }
   errEl.textContent = "PIN not recognized in offline data. Try again once you have a connection.";
+  resetPinKeypadEntry();
 }
 
 /* ---------------- Session persistence (survives an unexpected page reload) ----------------
@@ -1668,6 +1738,7 @@ function loginAsSuperadmin(key, entry, cachedMeta) {
 function finishLogin() {
   document.getElementById("loginPinInput").value = "";
   document.getElementById("loginError").textContent = "";
+  resetPinKeypadEntry();
   document.getElementById("loginGate").classList.remove("show");
   const badge = document.getElementById("loggedInAs");
   badge.style.display = "inline-block";
@@ -1777,6 +1848,7 @@ function logoutManager() {
   detachDashboardListeners();
   document.getElementById("loginPinInput").value = "";
   document.getElementById("loginError").textContent = "";
+  resetPinKeypadEntry();
   showLoginPanel();
   document.getElementById("loginGate").classList.add("show");
   document.getElementById("loggedInAs").style.display = "none";
@@ -1822,10 +1894,70 @@ function logoutManager() {
   notesPopupShownThisSession = false;
 }
 
-document.getElementById("loginSubmitBtn").addEventListener("click", attemptLogin);
-document.getElementById("loginPinInput").addEventListener("keydown", (e) => {
-  if (e.key === "Enter") attemptLogin();
-});
+const loginSubmitBtnEl = document.getElementById("loginSubmitBtn");
+if (loginSubmitBtnEl) loginSubmitBtnEl.addEventListener("click", attemptLogin);
+
+/* ---------------- On-screen PIN keypad ----------------
+   Drives the hidden #loginPinInput so the rest of the login logic
+   (attemptLogin, hashPin, etc.) doesn't need to change. Auto-attempts
+   login shortly after the 4th digit, but keeps waiting for more digits
+   if the person keeps typing (PINs can run up to 8 digits). */
+let loginPinBuffer = "";
+let loginAutoAttemptTimer = null;
+
+function renderPinDots() {
+  const row = document.getElementById("pinDotsRow");
+  if (!row) return;
+  const len = loginPinBuffer.length;
+  const slots = Math.max(4, len);
+  let html = "";
+  for (let i = 0; i < slots; i++) html += `<span class="pin-dot${i < len ? " filled" : ""}"></span>`;
+  row.innerHTML = html;
+}
+
+function resetPinKeypadEntry() {
+  loginPinBuffer = "";
+  if (loginAutoAttemptTimer) { clearTimeout(loginAutoAttemptTimer); loginAutoAttemptTimer = null; }
+  const input = document.getElementById("loginPinInput");
+  if (input) input.value = "";
+  renderPinDots();
+}
+
+function scheduleAutoPinAttempt() {
+  if (loginAutoAttemptTimer) { clearTimeout(loginAutoAttemptTimer); loginAutoAttemptTimer = null; }
+  if (loginPinBuffer.length < 4) return;
+  loginAutoAttemptTimer = setTimeout(() => {
+    loginAutoAttemptTimer = null;
+    attemptLogin();
+  }, 350);
+}
+
+function pinKeyTap(digit) {
+  if (loginPinBuffer.length >= 8) return;
+  loginPinBuffer += String(digit);
+  const input = document.getElementById("loginPinInput");
+  if (input) input.value = loginPinBuffer;
+  const errEl = document.getElementById("loginError");
+  if (errEl) errEl.textContent = "";
+  renderPinDots();
+  scheduleAutoPinAttempt();
+}
+
+function pinKeyBackspace() {
+  loginPinBuffer = loginPinBuffer.slice(0, -1);
+  const input = document.getElementById("loginPinInput");
+  if (input) input.value = loginPinBuffer;
+  if (loginAutoAttemptTimer) { clearTimeout(loginAutoAttemptTimer); loginAutoAttemptTimer = null; }
+  renderPinDots();
+}
+
+function pinKeyClear() {
+  resetPinKeypadEntry();
+  const errEl = document.getElementById("loginError");
+  if (errEl) errEl.textContent = "";
+}
+
+renderPinDots();
 
 /* ===================================================================
    FORGOT PIN — self-service reset via email
