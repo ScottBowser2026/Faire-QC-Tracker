@@ -358,6 +358,7 @@
     color:var(--slate);
     margin-bottom:5px;
   }
+  .time-scroll-select{ flex:1; min-width:0; }
   .field select, .field input, .field textarea{
     width:100%;
     padding:10px 11px;
@@ -926,18 +927,30 @@
       </div>
 
       <div class="field">
-        <label>Time to Cashier (minutes)</label>
-        <input type="number" id="qtTimeToCashier" step="0.1" min="0" placeholder="e.g. 3.5">
+        <label>Time to Cashier (min : sec)</label>
+        <div style="display:flex; gap:8px; align-items:center;">
+          <select id="qtTimeToCashierMin" class="time-scroll-select"></select>
+          <span>:</span>
+          <select id="qtTimeToCashierSec" class="time-scroll-select"></select>
+        </div>
       </div>
 
       <div class="field">
-        <label>Cashier Time (minutes)</label>
-        <input type="number" id="qtCashierTime" step="0.1" min="0" placeholder="e.g. 1.5">
+        <label>Cashier Time (min : sec)</label>
+        <div style="display:flex; gap:8px; align-items:center;">
+          <select id="qtCashierTimeMin" class="time-scroll-select"></select>
+          <span>:</span>
+          <select id="qtCashierTimeSec" class="time-scroll-select"></select>
+        </div>
       </div>
 
       <div class="field">
-        <label>Food Delivery Time (minutes)</label>
-        <input type="number" id="qtFoodDeliveryTime" step="0.1" min="0" placeholder="e.g. 2">
+        <label>Food Delivery Time (min : sec)</label>
+        <div style="display:flex; gap:8px; align-items:center;">
+          <select id="qtFoodDeliveryTimeMin" class="time-scroll-select"></select>
+          <span>:</span>
+          <select id="qtFoodDeliveryTimeSec" class="time-scroll-select"></select>
+        </div>
       </div>
 
       <div class="field">
@@ -2841,9 +2854,9 @@ function renderTastingReport() {
             <td data-label="Appearance">${escapeHtml(t.appearance || "—")}</td>
             <td data-label="Taste">${escapeHtml(t.taste || "—")}</td>
             <td data-label="# In Line" class="mono">${t.lineCount !== null && t.lineCount !== undefined ? t.lineCount : "—"}</td>
-            <td data-label="Time to Cashier" class="mono">${t.timeToCashier !== null && t.timeToCashier !== undefined ? t.timeToCashier + " min" : "—"}</td>
-            <td data-label="Cashier Time" class="mono">${t.cashierTime !== null && t.cashierTime !== undefined ? t.cashierTime + " min" : "—"}</td>
-            <td data-label="Food Delivery Time" class="mono">${t.foodDeliveryTime !== null && t.foodDeliveryTime !== undefined ? t.foodDeliveryTime + " min" : "—"}</td>
+            <td data-label="Time to Cashier" class="mono">${formatMinSec(t.timeToCashierSec) !== null ? formatMinSec(t.timeToCashierSec) : "—"}</td>
+            <td data-label="Cashier Time" class="mono">${formatMinSec(t.cashierTimeSec) !== null ? formatMinSec(t.cashierTimeSec) : "—"}</td>
+            <td data-label="Food Delivery Time" class="mono">${formatMinSec(t.foodDeliveryTimeSec) !== null ? formatMinSec(t.foodDeliveryTimeSec) : "—"}</td>
             <td data-label="Notes">${escapeHtml(t.notes || "")}</td>
             <td data-label="Photos">
               ${t.photoUrl ? `<img src="${t.photoUrl}" onclick="openPhotoModal('${t._id}')" style="width:36px;height:36px;object-fit:cover;border-radius:5px;border:1px solid var(--line);cursor:pointer;margin-right:4px;" title="Presentation photo">` : ""}
@@ -2857,15 +2870,15 @@ function renderTastingReport() {
 function downloadTastingReport() {
   const { tastingsForDay } = computeTastingReportData();
   if (!tastingsForDay.length) { toast("No tastings logged for this day", "err"); return; }
-  const headers = ["Time", "Booth", "Item", "Tasted By", "Temp", "Appearance", "Taste", "# In Line", "Time to Cashier (min)", "Cashier Time (min)", "Food Delivery Time (min)", "Notes"];
+  const headers = ["Time", "Booth", "Item", "Tasted By", "Temp", "Appearance", "Taste", "# In Line", "Time to Cashier (min:sec)", "Cashier Time (min:sec)", "Food Delivery Time (min:sec)", "Notes"];
   const rows = [headers, ...tastingsForDay.map(t => [
     t.checkTime || "", t.boothName || "", t.itemName || "", t.checkedBy || "",
     t.temp !== null && t.temp !== undefined ? t.temp : "",
     t.appearance || "", t.taste || "",
     t.lineCount !== null && t.lineCount !== undefined ? t.lineCount : "",
-    t.timeToCashier !== null && t.timeToCashier !== undefined ? t.timeToCashier : "",
-    t.cashierTime !== null && t.cashierTime !== undefined ? t.cashierTime : "",
-    t.foodDeliveryTime !== null && t.foodDeliveryTime !== undefined ? t.foodDeliveryTime : "",
+    formatMinSec(t.timeToCashierSec) || "",
+    formatMinSec(t.cashierTimeSec) || "",
+    formatMinSec(t.foodDeliveryTimeSec) || "",
     t.notes || ""
   ])];
   downloadCsv(rows, "tasting-report");
@@ -2884,9 +2897,9 @@ function printTastingReport() {
       t.appearance ? `<span><b>Appearance:</b> ${escapeHtml(t.appearance)}</span>` : "",
       t.taste ? `<span><b>Taste:</b> ${escapeHtml(t.taste)}</span>` : "",
       t.lineCount !== null && t.lineCount !== undefined ? `<span><b># In Line:</b> ${t.lineCount}</span>` : "",
-      t.timeToCashier !== null && t.timeToCashier !== undefined ? `<span><b>Time to Cashier:</b> ${t.timeToCashier} min</span>` : "",
-      t.cashierTime !== null && t.cashierTime !== undefined ? `<span><b>Cashier Time:</b> ${t.cashierTime} min</span>` : "",
-      t.foodDeliveryTime !== null && t.foodDeliveryTime !== undefined ? `<span><b>Food Delivery Time:</b> ${t.foodDeliveryTime} min</span>` : ""
+      formatMinSec(t.timeToCashierSec) !== null ? `<span><b>Time to Cashier:</b> ${formatMinSec(t.timeToCashierSec)}</span>` : "",
+      formatMinSec(t.cashierTimeSec) !== null ? `<span><b>Cashier Time:</b> ${formatMinSec(t.cashierTimeSec)}</span>` : "",
+      formatMinSec(t.foodDeliveryTimeSec) !== null ? `<span><b>Food Delivery Time:</b> ${formatMinSec(t.foodDeliveryTimeSec)}</span>` : ""
     ].filter(Boolean).join("");
 
     const photos = `<div class="print-tasting-photos">
@@ -4757,6 +4770,56 @@ function setQtDefaultTime() {
 }
 setQtDefaultTime();
 
+/* ---------------- Minute/Second scroll selects ----------------
+   Used for Time to Cashier, Cashier Time, and Food Delivery Time —
+   a pair of dropdowns (0–20 min, 0–59 sec) instead of typing a decimal.
+   Values are combined into total seconds for storage. */
+function populateMinSecSelects(minId, secId) {
+  const minSel = document.getElementById(minId);
+  const secSel = document.getElementById(secId);
+  if (minSel && !minSel.options.length) {
+    for (let m = 0; m <= 20; m++) {
+      const opt = document.createElement("option");
+      opt.value = String(m);
+      opt.textContent = String(m) + " min";
+      minSel.appendChild(opt);
+    }
+  }
+  if (secSel && !secSel.options.length) {
+    for (let s = 0; s <= 59; s++) {
+      const opt = document.createElement("option");
+      opt.value = String(s);
+      opt.textContent = String(s).padStart(2, "0") + " sec";
+      secSel.appendChild(opt);
+    }
+  }
+}
+["qtTimeToCashier", "qtCashierTime", "qtFoodDeliveryTime"].forEach(base => {
+  populateMinSecSelects(base + "Min", base + "Sec");
+});
+
+function readMinSecSelects(minId, secId) {
+  const minEl = document.getElementById(minId);
+  const secEl = document.getElementById(secId);
+  const m = minEl ? parseInt(minEl.value, 10) || 0 : 0;
+  const s = secEl ? parseInt(secEl.value, 10) || 0 : 0;
+  return (m * 60) + s;
+}
+
+function resetMinSecSelects(minId, secId) {
+  const minEl = document.getElementById(minId);
+  const secEl = document.getElementById(secId);
+  if (minEl) minEl.value = "0";
+  if (secEl) secEl.value = "0";
+}
+
+function formatMinSec(totalSeconds) {
+  if (totalSeconds === null || totalSeconds === undefined) return null;
+  const m = Math.floor(totalSeconds / 60);
+  const s = totalSeconds % 60;
+  return m + ":" + String(s).padStart(2, "0");
+}
+
 document.getElementById("qtSubmitBtn").addEventListener("click", () => {
   if (!loggedInManager) { toast("Please log in first", "err"); return; }
   if (loggedInManager.role !== "admin" && loggedInManager.role !== "superadmin" && loggedInManager.role !== "secretshopper") {
@@ -4771,9 +4834,9 @@ document.getElementById("qtSubmitBtn").addEventListener("click", () => {
   const appearance = document.getElementById("qtAppearance").value;
   const taste = document.getElementById("qtTaste").value;
   const lineCountVal = document.getElementById("qtLineCount").value;
-  const timeToCashierVal = document.getElementById("qtTimeToCashier").value;
-  const cashierTimeVal = document.getElementById("qtCashierTime").value;
-  const foodDeliveryTimeVal = document.getElementById("qtFoodDeliveryTime").value;
+  const timeToCashierSecTotal = readMinSecSelects("qtTimeToCashierMin", "qtTimeToCashierSec");
+  const cashierTimeSecTotal = readMinSecSelects("qtCashierTimeMin", "qtCashierTimeSec");
+  const foodDeliveryTimeSecTotal = readMinSecSelects("qtFoodDeliveryTimeMin", "qtFoodDeliveryTimeSec");
   const notesSelectVal = document.getElementById("qtNotesSelect").value;
   const notes = notesSelectVal === "__other__" ? document.getElementById("qtNotesOther").value.trim() : notesSelectVal;
 
@@ -4803,9 +4866,9 @@ document.getElementById("qtSubmitBtn").addEventListener("click", () => {
     appearance,
     taste,
     lineCount: lineCountVal ? parseFloat(lineCountVal) : null,
-    timeToCashier: timeToCashierVal ? parseFloat(timeToCashierVal) : null,
-    cashierTime: cashierTimeVal ? parseFloat(cashierTimeVal) : null,
-    foodDeliveryTime: foodDeliveryTimeVal ? parseFloat(foodDeliveryTimeVal) : null,
+    timeToCashierSec: timeToCashierSecTotal > 0 ? timeToCashierSecTotal : null,
+    cashierTimeSec: cashierTimeSecTotal > 0 ? cashierTimeSecTotal : null,
+    foodDeliveryTimeSec: foodDeliveryTimeSecTotal > 0 ? foodDeliveryTimeSecTotal : null,
     status: "na",
     notes,
     photoUrl: qtPhotoPresentationUrl,
@@ -4817,9 +4880,9 @@ document.getElementById("qtSubmitBtn").addEventListener("click", () => {
   toast("Tasting saved on this device — syncing…", "ok");
   document.getElementById("qtTemp").value = "";
   document.getElementById("qtLineCount").value = "";
-  document.getElementById("qtTimeToCashier").value = "";
-  document.getElementById("qtCashierTime").value = "";
-  document.getElementById("qtFoodDeliveryTime").value = "";
+  resetMinSecSelects("qtTimeToCashierMin", "qtTimeToCashierSec");
+  resetMinSecSelects("qtCashierTimeMin", "qtCashierTimeSec");
+  resetMinSecSelects("qtFoodDeliveryTimeMin", "qtFoodDeliveryTimeSec");
   document.getElementById("qtNotesSelect").value = "";
   document.getElementById("qtNotesOther").value = "";
   document.getElementById("qtNotesOther").style.display = "none";
