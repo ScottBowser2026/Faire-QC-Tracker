@@ -620,6 +620,7 @@
     <span id="loggedInAs" class="status-pill" style="display:none;"></span>
     <span id="pendingSyncBadge" class="status-pill" style="display:none; background:rgba(181,101,42,.25); border-color:var(--copper); color:#F0C89A;"></span>
     <button id="logoutBtn" class="btn btn-ghost btn-sm" style="display:none; color:var(--parchment); border-color:rgba(255,255,255,0.3);" onclick="logoutManager()">Log Out</button>
+    <button id="manualRefreshBtn" class="btn btn-ghost btn-sm" title="Refresh to the latest version" style="color:var(--parchment); border-color:rgba(255,255,255,0.3);" onclick="manualRefreshApp()">🔄 Refresh</button>
     <span id="connStatus" class="status-pill offline">Connecting…</span>
   </div>
 </header>
@@ -6420,9 +6421,28 @@ function isSafeToAutoReload() {
   return true;
 }
 
+/* ---------------- Manual "Refresh" button (everyone) ----------------
+   Anyone can tap this to pull the latest version right now, instead of
+   waiting for the auto-update-on-foreground check or a Superadmin's
+   Force Refresh Everyone. If something's in progress (an open photo or
+   an unreviewed check result), it asks first instead of wiping it. */
+let swRegistrationRef = null;
+function manualRefreshApp() {
+  if (!isSafeToAutoReload()) {
+    if (!confirm("You have an in-progress photo or unreviewed result on this screen. Refreshing now will lose it — refresh anyway?")) return;
+  }
+  toast("Refreshing…", "ok");
+  if (swRegistrationRef) {
+    swRegistrationRef.update().finally(() => window.location.reload());
+  } else {
+    window.location.reload();
+  }
+}
+
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
     navigator.serviceWorker.register("sw.js").then(reg => {
+      swRegistrationRef = reg;
       // Check for an update every time the app comes back to the foreground.
       document.addEventListener("visibilitychange", () => {
         if (document.visibilityState === "visible") reg.update();
