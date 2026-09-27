@@ -2741,16 +2741,24 @@ function isSameLocalCalendarDay(ts, dateObj) {
   return a.getFullYear() === dateObj.getFullYear() && a.getMonth() === dateObj.getMonth() && a.getDate() === dateObj.getDate();
 }
 
-// A check's canonical timestamp for date filtering. Prefers submittedAt,
-// but falls back to checkTime — some records can end up missing
-// submittedAt (e.g. logged through an out-of-sync app version during a
-// deploy), and silently treating those as dateless was a real bug: they
-// vanished from every report even though they were sitting right there
-// in the database. Returns null only if neither field is usable.
+// A check's canonical timestamp for date filtering. Prefers checkTime —
+// the date/time the person actually entered for the check — falling back
+// to submittedAt only when checkTime is missing entirely.
+//
+// This used to prefer submittedAt first, on the theory that it was the
+// more reliable field. In practice submittedAt can be stale or just wrong
+// on a real record (confirmed 2026-09-27: a live PARF check had
+// checkTime "2026-09-26T15:03" but a submittedAt that resolved to
+// 2026-09-20 — six days off), which silently misfiled it into the wrong
+// day everywhere (Daily Report, Tasting Report, the archive scanner) even
+// though the record itself was intact and checkTime was correct. checkTime
+// is what the person on the ground actually recorded happening, so it's
+// the more trustworthy source of truth for "what day does this belong to."
+// Returns null only if neither field is usable.
 function checkDateForFiltering(c) {
   if (!c) return null;
-  if (c.submittedAt) return c.submittedAt;
   if (c.checkTime) return c.checkTime;
+  if (c.submittedAt) return c.submittedAt;
   return null;
 }
 
@@ -3467,11 +3475,11 @@ function scanUnarchivedDays() {
   const dayKeys = new Set();
   Object.values(checksData || {}).forEach(c => {
     if (!c) return;
-    // Prefer submittedAt, but fall back to checkTime — some records may be
-    // missing submittedAt (e.g. logged through an out-of-sync app version),
-    // and silently skipping those is exactly the bug this tool exists to
-    // catch, not repeat.
-    const d = c.submittedAt ? new Date(c.submittedAt) : (c.checkTime ? new Date(c.checkTime) : null);
+    // Uses the same checkTime-first logic as checkDateForFiltering() —
+    // see its comment for why (a stale/wrong submittedAt can misfile a
+    // record into the wrong day even when checkTime is correct).
+    const rawDate = checkDateForFiltering(c);
+    const d = rawDate ? new Date(rawDate) : null;
     if (!d || isNaN(d.getTime())) return;
     if (isSameLocalCalendarDay(d, today)) return; // skip today — still in progress
     dayKeys.add(dateKey(d));
@@ -6388,7 +6396,7 @@ function renderDashboard() {
     const booths = data.booths || {};
     const checks = Object.values(data.checks || {});
 
-    const todayChecks = checks.filter(c => c && isSameLocalDay(c.submittedAt || 0, now));
+    const todayChecks = checks.filter(c => c && isSameLocalDay(checkDateForFiltering(c) || 0, now));
     const passCount = todayChecks.filter(c => c.status === "pass").length;
     const failCount = todayChecks.filter(c => c.status === "fail").length;
 
