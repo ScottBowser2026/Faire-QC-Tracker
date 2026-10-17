@@ -720,6 +720,8 @@
       <div class="field">
         <label>Booth</label>
         <select id="qcBooth"><option value="">Select a booth…</option></select>
+        <input type="text" id="qcBoothFree" placeholder="Type booth / stand name" style="display:none; margin-top:8px;">
+        <input type="text" id="qcBoothAlt" placeholder="Name on the list wrong? Type the real booth name (optional)" style="margin-top:8px;">
       </div>
 
       <div id="qcZmDisplay" class="temp-hint" style="margin:-8px 0 14px;"></div>
@@ -727,6 +729,7 @@
       <div class="field">
         <label>Menu Item</label>
         <select id="qcItem" disabled><option value="">Select booth first…</option></select>
+        <input type="text" id="qcItemFree" placeholder="Type the item name" style="display:none; margin-top:8px;">
       </div>
 
       <div id="qcBakedNote" class="baked-note" style="display:none;">
@@ -864,6 +867,7 @@
         <label>Booth</label>
         <select id="qtBooth"><option value="">Select a booth…</option></select>
         <input type="text" id="qtBoothFree" placeholder="Type booth / stand name" style="display:none; margin-top:8px;">
+        <input type="text" id="qtBoothAlt" placeholder="Name on the list wrong? Type the real booth name (optional)" style="margin-top:8px;">
       </div>
 
       <div class="field">
@@ -3777,8 +3781,8 @@ function populateBoothSelect() {
   sel.disabled = false;
   sel.innerHTML = `<option value="">Select a booth…</option>` + ids.map(id =>
     `<option value="${id}">${escapeHtml(boothsData[id].name || "Unnamed Booth")}</option>`
-  ).join("");
-  if (ids.includes(current)) sel.value = current;
+  ).join("") + (isManagerRole ? "" : `<option value="__free__">✏️ Not listed — type it</option>`);
+  if (ids.includes(current) || (current === "__free__" && !isManagerRole)) sel.value = current;
 }
 
 function populateDeliveryBoothSelect() {
@@ -4354,18 +4358,43 @@ document.getElementById("qcPhoto").addEventListener("change", (e) => {
   reader.readAsDataURL(file);
 });
 
+function qcUpdateFreeInputs() {
+  const boothFree = qcBoothSel.value === "__free__";
+  const itemFree = boothFree || qcItemSel.value === "__free__";
+  document.getElementById("qcBoothFree").style.display = boothFree ? "" : "none";
+  document.getElementById("qcItemFree").style.display = itemFree ? "" : "none";
+  if (itemFree) {
+    // Unknown item: always allow an optional temp reading
+    document.getElementById("qcTempMin").textContent = "optional";
+    qcTempField.style.display = "block";
+    qcBakedNote.style.display = "none";
+  }
+}
+
 qcBoothSel.addEventListener("change", () => {
+  if (qcBoothSel.value === "__free__") {
+    qcZmDisplay.textContent = "";
+    qcItemSel.innerHTML = `<option value="__free__">✏️ Type the item below</option>`;
+    qcItemSel.value = "__free__";
+    qcItemSel.disabled = true;
+    qcUpdateFreeInputs();
+    return;
+  }
+  document.getElementById("qcBoothFree").style.display = "none";
+  document.getElementById("qcItemFree").style.display = "none";
   const b = boothsData[qcBoothSel.value];
   qcZmDisplay.textContent = b ? `Zone Manager(s): ${boothManagerDisplay(b)}` : "";
   const items = (b && b.menuItems) ? b.menuItems : {};
   const ids = Object.keys(items);
-  if (!ids.length) {
+  const canFree = loggedInManager && (loggedInManager.role === "admin" || loggedInManager.role === "superadmin");
+  const freeOpt = canFree ? `<option value="__free__">✏️ Not listed — type it</option>` : "";
+  if (!ids.length && !canFree) {
     qcItemSel.innerHTML = `<option value="">No menu items for this booth</option>`;
     qcItemSel.disabled = true;
   } else {
     qcItemSel.innerHTML = `<option value="">Select an item…</option>` + ids.map(id =>
       `<option value="${id}">${escapeHtml(items[id].name || "Unnamed")}</option>`
-    ).join("");
+    ).join("") + freeOpt;
     qcItemSel.disabled = false;
   }
   qcTempField.style.display = "none";
@@ -4373,6 +4402,8 @@ qcBoothSel.addEventListener("change", () => {
 });
 
 qcItemSel.addEventListener("change", () => {
+  if (qcItemSel.value === "__free__") { qcUpdateFreeInputs(); return; }
+  document.getElementById("qcItemFree").style.display = "none";
   const b = boothsData[qcBoothSel.value];
   const it = b && b.menuItems ? b.menuItems[qcItemSel.value] : null;
   if (!it) { qcTempField.style.display = "none"; qcBakedNote.style.display = "none"; return; }
@@ -4401,14 +4432,21 @@ document.getElementById("qcSubmitBtn").addEventListener("click", () => {
   const isManagerRole = loggedInManager.role !== "admin" && loggedInManager.role !== "superadmin";
 
   if (!boothId) { toast("Select a booth", "err"); return; }
+  const boothIsFree = boothId === "__free__";
+  const itemIsFree = boothIsFree || qcItemSel.value === "__free__";
+  if (isManagerRole && itemIsFree) { toast("Pick a booth and item from the list", "err"); return; }
+  const freeBooth = document.getElementById("qcBoothFree").value.trim();
+  const freeItem = document.getElementById("qcItemFree").value.trim();
+  if (boothIsFree && !freeBooth) { toast("Type the booth name", "err"); return; }
   if (!checkedBy) { toast("Enter who's running this", "err"); return; }
   if (!checkTime) { toast("Set the time", "err"); return; }
   if (!compressedPhotoDataUrl) { toast("A photo is required to submit this", "err"); return; }
 
-  const booth = boothsData[boothId];
+  const booth = boothIsFree ? { name: freeBooth, menuItems: {} } : boothsData[boothId];
   const itemId = qcItemSel.value;
   if (!itemId) { toast("Select a menu item", "err"); return; }
-  const item = booth.menuItems[itemId];
+  if (itemIsFree && !freeItem) { toast("Type the item name", "err"); return; }
+  const item = itemIsFree ? { name: freeItem, requiresTemp: false, minTemp: null } : booth.menuItems[itemId];
 
   if (isManagerRole && !boothHasManager(booth, loggedInManager.name)) {
     toast("That booth isn't assigned to you", "err");
@@ -4439,14 +4477,16 @@ document.getElementById("qcSubmitBtn").addEventListener("click", () => {
     type: "check",
     facilityId: currentFacilityId,
     facilityName: (facilityMetaData[currentFacilityId] && facilityMetaData[currentFacilityId].name) || currentFacilityId,
-    boothId,
-    boothName: booth.name,
-    zoneManager: boothManagerDisplay(booth),
-    itemId,
+    boothId: boothIsFree ? null : boothId,
+    boothName: (!boothIsFree && document.getElementById("qcBoothAlt").value.trim()) || booth.name,
+    boothNameListed: (!boothIsFree && document.getElementById("qcBoothAlt").value.trim()) ? booth.name : null,
+    zoneManager: boothIsFree ? "" : boothManagerDisplay(booth),
+    itemId: itemIsFree ? null : itemId,
     itemName: item.name,
+    openEnded: itemIsFree,
     checkedBy,
     checkTime,
-    temp: item.requiresTemp ? parseFloat(tempVal) : null,
+    temp: item.requiresTemp ? parseFloat(tempVal) : (itemIsFree && tempVal ? parseFloat(tempVal) : null),
     minTemp: item.minTemp || null,
     status,
     notes,
@@ -4908,7 +4948,8 @@ document.getElementById("qtSubmitBtn").addEventListener("click", () => {
     facilityId: currentFacilityId,
     facilityName: (facilityMetaData[currentFacilityId] && facilityMetaData[currentFacilityId].name) || currentFacilityId,
     boothId: boothIsFree ? null : boothId,
-    boothName: booth.name,
+    boothName: (!boothIsFree && document.getElementById("qtBoothAlt").value.trim()) || booth.name,
+    boothNameListed: (!boothIsFree && document.getElementById("qtBoothAlt").value.trim()) ? booth.name : null,
     zoneManager: boothIsFree ? "" : boothManagerDisplay(booth),
     itemId: itemIsFree ? null : itemId,
     itemName: item.name,
@@ -4940,6 +4981,7 @@ document.getElementById("qtSubmitBtn").addEventListener("click", () => {
   document.getElementById("qtDescription").value = "";
   document.getElementById("qtOverall").value = "";
   document.getElementById("qtItemFree").value = "";
+  document.getElementById("qtBoothAlt").value = "";
   document.getElementById("qtLineCount").value = "";
   resetMinSecSelects("qtTimeToCashierMin", "qtTimeToCashierSec");
   resetMinSecSelects("qtCashierTimeMin", "qtCashierTimeSec");
