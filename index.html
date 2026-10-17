@@ -863,11 +863,23 @@
       <div class="field">
         <label>Booth</label>
         <select id="qtBooth"><option value="">Select a booth…</option></select>
+        <input type="text" id="qtBoothFree" placeholder="Type booth / stand name" style="display:none; margin-top:8px;">
       </div>
 
       <div class="field">
         <label>Menu Item</label>
         <select id="qtItem" disabled><option value="">Select booth first…</option></select>
+        <input type="text" id="qtItemFree" placeholder="Type exactly what you ordered" style="display:none; margin-top:8px;">
+      </div>
+
+      <div class="field">
+        <label>Price Paid ($) (optional)</label>
+        <input type="number" id="qtPrice" step="0.01" min="0" placeholder="e.g. 12.50">
+      </div>
+
+      <div class="field">
+        <label>What Is It? (optional)</label>
+        <textarea id="qtDescription" placeholder="Menu description, portion size, ingredients, anything useful"></textarea>
       </div>
 
       <div class="field">
@@ -951,6 +963,18 @@
           <span>:</span>
           <select id="qtFoodDeliveryTimeSec" class="time-scroll-select"></select>
         </div>
+      </div>
+
+      <div class="field">
+        <label>Overall</label>
+        <select id="qtOverall">
+          <option value="">— Not rated —</option>
+          <option value="5">5 – Would order again</option>
+          <option value="4">4 – Good</option>
+          <option value="3">3 – Okay</option>
+          <option value="2">2 – Weak</option>
+          <option value="1">1 – Would not order again</option>
+        </select>
       </div>
 
       <div class="field">
@@ -1472,7 +1496,7 @@
 // (even in an incognito window with zero cache) exactly what version is live.
 // Version matches the date it was pushed (MMDD) — update this to today's
 // date on every deploy, not an incrementing counter.
-const APP_VERSION = "0927";
+const APP_VERSION = "1017";
 document.getElementById("appVersionBadge").textContent = APP_VERSION;
 
 const firebaseConfig = {
@@ -2848,7 +2872,7 @@ function renderTastingReport() {
   wrap.innerHTML = `
     <table class="log">
       <thead><tr>
-        <th>Time</th><th>Booth</th><th>Item</th><th>Tasted By</th><th>Temp</th>
+        <th>Time</th><th>Booth</th><th>Item</th><th>Price</th><th>Overall</th><th>Tasted By</th><th>Temp</th>
         <th>Appearance</th><th>Taste</th><th># In Line</th><th>Time to Cashier</th><th>Cashier Time</th><th>Food Delivery Time</th><th>Notes</th><th>Photos</th>
       </tr></thead>
       <tbody>
@@ -2856,7 +2880,9 @@ function renderTastingReport() {
           <tr>
             <td data-label="Time" class="mono">${escapeHtml(t.checkTime || "")}</td>
             <td data-label="Booth">${escapeHtml(t.boothName || "")}</td>
-            <td data-label="Item">${escapeHtml(t.itemName || "")}</td>
+            <td data-label="Item">${escapeHtml(t.itemName || "")}${t.description ? `<div class="temp-hint">${escapeHtml(t.description)}</div>` : ""}</td>
+            <td data-label="Price" class="mono">${t.price !== null && t.price !== undefined ? "$" + Number(t.price).toFixed(2) : "—"}</td>
+            <td data-label="Overall" class="mono">${t.overall ? t.overall + "/5" : "—"}</td>
             <td data-label="Tasted By">${escapeHtml(t.checkedBy || "")}</td>
             <td data-label="Temp" class="mono">${t.temp !== null && t.temp !== undefined ? t.temp + "°F" : "—"}</td>
             <td data-label="Appearance">${escapeHtml(t.appearance || "—")}</td>
@@ -4711,24 +4737,34 @@ function populateTastingBoothSelect() {
   const ids = Object.keys(boothsData).sort((a, b) => (boothsData[a].name || "").localeCompare(boothsData[b].name || ""));
   qtBoothSel.innerHTML = `<option value="">Select a booth…</option>` + ids.map(id =>
     `<option value="${id}">${escapeHtml(boothsData[id].name || "Unnamed Booth")}</option>`
-  ).join("");
-  if (ids.includes(current)) qtBoothSel.value = current;
+  ).join("") + `<option value="__free__">✏️ Not listed — type it</option>`;
+  if (ids.includes(current) || current === "__free__") qtBoothSel.value = current;
+}
+
+function qtUpdateFreeInputs() {
+  const boothFree = qtBoothSel.value === "__free__";
+  document.getElementById("qtBoothFree").style.display = boothFree ? "" : "none";
+  document.getElementById("qtItemFree").style.display = (boothFree || qtItemSel.value === "__free__") ? "" : "none";
 }
 
 qtBoothSel.addEventListener("change", () => {
+  if (qtBoothSel.value === "__free__") {
+    qtItemSel.innerHTML = `<option value="__free__">✏️ Type the item below</option>`;
+    qtItemSel.value = "__free__";
+    qtItemSel.disabled = true;
+    qtUpdateFreeInputs();
+    return;
+  }
   const b = boothsData[qtBoothSel.value];
   const items = (b && b.menuItems) ? b.menuItems : {};
   const ids = Object.keys(items);
-  if (!ids.length) {
-    qtItemSel.innerHTML = `<option value="">No menu items for this booth</option>`;
-    qtItemSel.disabled = true;
-  } else {
-    qtItemSel.innerHTML = `<option value="">Select an item…</option>` + ids.map(id =>
-      `<option value="${id}">${escapeHtml(items[id].name || "Unnamed")}</option>`
-    ).join("");
-    qtItemSel.disabled = false;
-  }
+  qtItemSel.innerHTML = `<option value="">Select an item…</option>` + ids.map(id =>
+    `<option value="${id}">${escapeHtml(items[id].name || "Unnamed")}</option>`
+  ).join("") + `<option value="__free__">✏️ Not listed — type it</option>`;
+  qtItemSel.disabled = !qtBoothSel.value;
+  qtUpdateFreeInputs();
 });
+qtItemSel.addEventListener("change", qtUpdateFreeInputs);
 
 function compressToDataUrl(file, cb) {
   const reader = new FileReader();
@@ -4836,6 +4872,13 @@ document.getElementById("qtSubmitBtn").addEventListener("click", () => {
   }
   const boothId = qtBoothSel.value;
   const itemId = qtItemSel.value;
+  const boothIsFree = boothId === "__free__";
+  const itemIsFree = boothIsFree || itemId === "__free__";
+  const freeBoothName = document.getElementById("qtBoothFree").value.trim();
+  const freeItemName = document.getElementById("qtItemFree").value.trim();
+  const priceVal = document.getElementById("qtPrice").value;
+  const descVal = document.getElementById("qtDescription").value.trim();
+  const overallVal = document.getElementById("qtOverall").value;
   const checkedBy = document.getElementById("qtCheckedBy").value.trim();
   const checkTime = document.getElementById("qtTime").value;
   const tempVal = document.getElementById("qtTemp").value;
@@ -4849,24 +4892,30 @@ document.getElementById("qtSubmitBtn").addEventListener("click", () => {
   const notes = notesSelectVal === "__other__" ? document.getElementById("qtNotesOther").value.trim() : notesSelectVal;
 
   if (!boothId) { toast("Select a booth", "err"); return; }
+  if (boothIsFree && !freeBoothName) { toast("Type the booth name", "err"); return; }
   if (!itemId) { toast("Select a menu item", "err"); return; }
+  if (itemIsFree && !freeItemName) { toast("Type the item name", "err"); return; }
   if (!checkedBy) { toast("Enter who's tasting", "err"); return; }
   if (!checkTime) { toast("Set the time", "err"); return; }
   if (!qtPhotoPresentationUrl) { toast("A presentation photo is required", "err"); return; }
   if (!qtPhotoTempUrl) { toast("A thermometer photo is required", "err"); return; }
 
-  const booth = boothsData[boothId];
-  const item = booth.menuItems[itemId];
+  const booth = boothIsFree ? { name: freeBoothName, menuItems: {} } : boothsData[boothId];
+  const item = itemIsFree ? { name: freeItemName } : booth.menuItems[itemId];
 
   const record = {
     type: "tasting",
     facilityId: currentFacilityId,
     facilityName: (facilityMetaData[currentFacilityId] && facilityMetaData[currentFacilityId].name) || currentFacilityId,
-    boothId,
+    boothId: boothIsFree ? null : boothId,
     boothName: booth.name,
-    zoneManager: boothManagerDisplay(booth),
-    itemId,
+    zoneManager: boothIsFree ? "" : boothManagerDisplay(booth),
+    itemId: itemIsFree ? null : itemId,
     itemName: item.name,
+    openEnded: itemIsFree || boothIsFree,
+    price: priceVal ? parseFloat(priceVal) : null,
+    description: descVal || null,
+    overall: overallVal ? parseInt(overallVal, 10) : null,
     checkedBy,
     checkTime,
     temp: tempVal ? parseFloat(tempVal) : null,
@@ -4887,6 +4936,10 @@ document.getElementById("qtSubmitBtn").addEventListener("click", () => {
   queueCheckLocally(record);
   toast("Tasting saved on this device — syncing…", "ok");
   document.getElementById("qtTemp").value = "";
+  document.getElementById("qtPrice").value = "";
+  document.getElementById("qtDescription").value = "";
+  document.getElementById("qtOverall").value = "";
+  document.getElementById("qtItemFree").value = "";
   document.getElementById("qtLineCount").value = "";
   resetMinSecSelects("qtTimeToCashierMin", "qtTimeToCashierSec");
   resetMinSecSelects("qtCashierTimeMin", "qtCashierTimeSec");
